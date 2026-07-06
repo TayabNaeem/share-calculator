@@ -132,6 +132,7 @@
     <div class="glass rounded-3xl p-8 shadow-2xl">
         <h2 id="auth-title" class="text-xl font-bold text-white mb-5 text-center">Sign In</h2>
         <div class="space-y-3">
+            <input id="name" type="text" placeholder="Full name" class="field hidden-view">
             <input id="email" type="email" placeholder="Email address" class="field">
             <input id="password" type="password" placeholder="Password" class="field">
             <button onclick="handleAuth()" id="auth-btn" class="btn-primary w-full text-white py-3 rounded-xl font-bold">Sign In</button>
@@ -215,7 +216,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut,
          updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot }
+import { getFirestore, doc, collection, setDoc, getDoc, deleteDoc, onSnapshot }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /* ===== OWNER: this email always has full control and manages all users. ===== */
@@ -251,22 +252,39 @@ try {
     db = getFirestore(app);
 } catch (e) { console.warn("Firebase init skipped:", e.message); }
 
-let isSignUp = false;
-window.toggleAuthMode = () => {
-    isSignUp = !isSignUp;
+let isSignUp = false, suppressBoot = false;
+function applyAuthMode(){
     el('auth-title').innerText = isSignUp ? "Create Account" : "Sign In";
     el('auth-btn').innerText   = isSignUp ? "Sign Up" : "Sign In";
     el('toggle-text').innerText= isSignUp ? "Already have an account?" : "Don't have an account?";
     el('toggle-btn').innerText = isSignUp ? "Sign In" : "Sign Up";
-};
+    el('name').classList.toggle('hidden-view', !isSignUp);
+}
+window.toggleAuthMode = () => { isSignUp = !isSignUp; el('error-msg').innerText=''; applyAuthMode(); };
 window.handleAuth = async () => {
-    const email = el('email').value, password = el('password').value, error = el('error-msg');
+    const email = el('email').value.trim(), password = el('password').value, error = el('error-msg');
+    error.style.color = '';
     if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
     try {
-        if (isSignUp) await createUserWithEmailAndPassword(auth, email, password);
-        else await signInWithEmailAndPassword(auth, email, password);
-        error.innerText = '';
-    } catch (e) { error.innerText = friendlyErr(e); }
+        if (isSignUp) {
+            const name = el('name').value.trim();
+            if (!name) { error.innerText = "Please enter your name."; return; }
+            suppressBoot = true;
+            const cred = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(cred.user, { displayName: name });
+            try { await setDoc(doc(db, "requests", cred.user.uid), { email: email.toLowerCase(), name, createdAt: Date.now() }); }
+            catch(e){ console.warn("Could not save access request:", e); }
+            await signOut(auth);
+            isSignUp = false; applyAuthMode();
+            el('password').value = ''; el('name').value = '';
+            error.style.color = '#34d399';
+            error.innerText = "Account created! You'll be able to sign in once the owner approves your access.";
+        } else {
+            await signInWithEmailAndPassword(auth, email, password);
+            error.innerText = '';
+        }
+    } catch (e) { error.style.color=''; error.innerText = friendlyErr(e); }
+    finally { suppressBoot = false; }
 };
 window.signOutUser = () => signOut(auth);
 function friendlyErr(e){ return (e.code||'').replace('auth/','').replace(/-/g,' ') || e.message; }
@@ -289,16 +307,27 @@ function canEdit(){ return currentRole === 'owner' || currentRole === 'admin'; }
 window.__getRole = () => currentRole;
 
 /* ============ Persistence (shared dataset) ============ */
-let dataRef = null, membersRef = null, saveTimer = null, unsub = null, unsubM = null, migrated = false;
+let dataRef = null, membersRef = null, saveTimer = null, unsub = null, unsubM = null, unsubR = null, migrated = false;
+let pendingRequests = [];
 
 async function bootUser(user){
     currentUser = user;
     dataRef = doc(db, "app", "data");
     membersRef = doc(db, "app", "members");
     subscribeMembers();
-    if (isOwnerEmail(user.email)) { try { await migrateIfNeeded(); } catch(e){ console.warn(e); } }
+    if (isOwnerEmail(user.email)) {
+        try { await migrateIfNeeded(); } catch(e){ console.warn(e); }
+        subscribeRequests();
+    }
     subscribeData();
     updateProfileUI();
+}
+function subscribeRequests(){
+    if (unsubR) unsubR();
+    unsubR = onSnapshot(collection(db, "requests"), (snap) => {
+        pendingRequests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (document.getElementById('mu-list')) renderManageUsers();
+    }, () => { pendingRequests = []; });
 }
 function subscribeMembers(){
     if (unsubM) unsubM();
@@ -433,10 +462,25 @@ function renderManageUsers(){
         </div>`;
     const list = [...admins.map(e=>row(e,'admin')), ...viewers.map(e=>row(e,'viewer'))].join('')
         || `<p class="text-slate-500 text-sm text-center py-4">No team members yet. Add one above.</p>`;
+    const pending = pendingRequests || [];
+    const pendingHtml = pending.length ? `
+        <div class="mb-4">
+            <p class="text-xs font-bold text-amber-300 uppercase tracking-wide mb-2">Pending approvals (${pending.length})</p>
+            <div class="space-y-2">${pending.map(r=>`
+                <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style="background:#f59e0b14;border:1px solid #f59e0b33">
+                    <div class="min-w-0"><p class="text-sm text-white truncate">${escHtml(r.name||'(no name)')}</p><p class="text-xs text-slate-400 truncate">${escHtml(r.email||'')}</p></div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','admin')" class="text-xs btn-primary text-white px-2.5 py-1 rounded-lg font-bold">Approve · Admin</button>
+                        <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','viewer')" class="text-xs glass text-cyan-300 px-2.5 py-1 rounded-lg font-bold">Viewer</button>
+                        <button onclick="dismissRequest('${escJs(r.id)}')" class="text-slate-400 hover:text-rose-400 px-1" title="Dismiss">✕</button>
+                    </div>
+                </div>`).join('')}</div>
+        </div>` : '';
     modalShell('Manage users', `
         <div class="mb-4 p-3 rounded-xl" style="background:#7c3aed14;border:1px solid #7c3aed33">
             <p class="text-xs text-slate-400">Owner · full control</p><p class="text-sm text-white font-semibold truncate">${escHtml(OWNER_EMAIL)}</p>
         </div>
+        ${pendingHtml}
         <p class="text-xs text-slate-400 mb-2">Add a team member by email. <b class="text-violet-300">Admin</b> can manage payments; <b class="text-cyan-300">Viewer</b> can only view. They must sign up with that same email.</p>
         <div class="flex gap-2 mb-4">
             <input id="mu-email" class="field flex-1" placeholder="user@email.com">
@@ -485,8 +529,24 @@ window.setMemberRole = async (email, role) => {
     if (role === 'admin') admins.push(email); else viewers.push(email);
     await persistMembers({ admins, viewers });
 };
+window.approveRequest = async (uid, email, role) => {
+    const e = email.toLowerCase();
+    const admins = (membersData.admins||[]).filter(x => x.toLowerCase() !== e);
+    const viewers = (membersData.viewers||[]).filter(x => x.toLowerCase() !== e);
+    if (role === 'admin') admins.push(e); else viewers.push(e);
+    try {
+        await setDoc(membersRef, { admins, viewers }); membersData = { admins, viewers };
+        await deleteDoc(doc(db, "requests", uid));
+        renderManageUsers();
+    } catch(err){ alert("Approve failed: " + friendlyErr(err)); console.error(err); }
+};
+window.dismissRequest = async (uid) => {
+    try { await deleteDoc(doc(db, "requests", uid)); }
+    catch(err){ alert("Dismiss failed: " + friendlyErr(err)); console.error(err); }
+};
 
 onAuthStateChanged(auth || {}, (user) => {
+    if (user && suppressBoot) return;   // during sign-up we sign the user straight back out
     if (user) {
         el('auth-container').classList.add('hidden-view');
         el('config-banner').classList.add('hidden-view');
@@ -1260,9 +1320,12 @@ function viewShare(){
                 <h2 class="text-xl font-bold text-white">${esc(b.name)} — Profit Distribution</h2>
                 <p class="text-slate-400 text-sm">Owner 40% · Future fund 36% · Team pool 24% (service lead earns 12%).</p>
             </div>
-            <div class="text-right">
-                <p class="text-xs text-slate-500">Batch received</p>
-                <p class="text-lg font-extrabold text-emerald-400 num">${money(totalRec)}</p>
+            <div class="flex items-center gap-4">
+                <div class="text-right">
+                    <p class="text-xs text-slate-500">Batch received</p>
+                    <p class="text-lg font-extrabold text-emerald-400 num">${money(totalRec)}</p>
+                </div>
+                <button onclick="downloadShareReport()" class="edit-only btn-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap">⬇ Download report</button>
             </div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1288,31 +1351,90 @@ function viewShare(){
 }
 function cssId(name){ return name.replace(/\s+/g,'_'); }
 function wireShare(){ computeShare(); }
-function computeShare(){
-    const b = activeBatch();
+function shareBreakdown(b){
     const per = batchReceivedPerCourse(b);
-    let ownerTotal=0, futureTotal=0, grand=0;
-    const results = {}; TEAM.forEach(n=>results[n]=0);
+    let owner=0, future=0, total=0;
+    const team = {}; TEAM.forEach(n=>team[n]=0);
     COURSES.forEach(c => {
-        const val = num(per[c.id]); grand += val;
-        ownerTotal += val*0.40; futureTotal += val*0.36;
+        const val = num(per[c.id]); total += val;
+        owner += val*0.40; future += val*0.36;
         const lead = SHARE_LEAD[c.id];
-        const pool = val*0.24;
         if (lead) {
-            results[lead] += val*0.12;
+            team[lead] += val*0.12;
             const split = (val*0.12)/(TEAM.length-1);
-            TEAM.forEach(n => { if (n!==lead) results[n]+=split; });
+            TEAM.forEach(n => { if (n!==lead) team[n]+=split; });
         } else {
-            const split = pool/TEAM.length;
-            TEAM.forEach(n => results[n]+=split);
+            const split = (val*0.24)/TEAM.length;
+            TEAM.forEach(n => team[n]+=split);
         }
     });
-    setTxt('owner-val', money(ownerTotal));
-    setTxt('future-val', money(futureTotal));
-    setTxt('share-total', money(grand));
-    TEAM.forEach(n => setTxt('res-'+cssId(n), money(results[n])));
+    return { per, owner, future, total, team };
+}
+function computeShare(){
+    const d = shareBreakdown(activeBatch());
+    setTxt('owner-val', money(d.owner));
+    setTxt('future-val', money(d.future));
+    setTxt('share-total', money(d.total));
+    TEAM.forEach(n => setTxt('res-'+cssId(n), money(d.team[n])));
 }
 function setTxt(id,v){ const e=document.getElementById(id); if(e) e.innerText=v; }
+
+window.downloadShareReport = () => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;   // admin/owner only
+    const b = activeBatch();
+    const d = shareBreakdown(b);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+    const teamPool = TEAM.reduce((a,n)=>a+d.team[n],0);
+    const revRows = COURSES.filter(c=>num(d.per[c.id])>0)
+        .map(c=>`<tr><td>${esc(c.name)}${SHARE_LEAD[c.id]?` <span class="lead">(lead: ${esc(SHARE_LEAD[c.id])})</span>`:''}</td><td class="r">${money(d.per[c.id])}</td></tr>`).join('')
+        || `<tr><td colspan="2" class="muted">No revenue recorded for this batch.</td></tr>`;
+    const teamRows = TEAM.map(n=>`<tr><td>${esc(n)}${SHARE_LEAD_BY_NAME(n)?` <span class="lead">(lead)</span>`:''}</td><td class="r">${money(d.team[n])}</td></tr>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Profit Share — ${esc(b.name)}</title>
+<style>
+ body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:760px;margin:24px auto;padding:0 20px;}
+ .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #7c3aed;padding-bottom:14px;margin-bottom:20px;}
+ .brand{font-size:24px;font-weight:800;color:#7c3aed;} .brand span{color:#0f172a;}
+ h2{font-size:13px;margin:24px 0 8px;color:#334155;text-transform:uppercase;letter-spacing:.05em;}
+ table{width:100%;border-collapse:collapse;margin-bottom:6px;} td,th{padding:9px 10px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px;}
+ .r{text-align:right;font-variant-numeric:tabular-nums;} th{background:#f8fafc;font-size:11px;text-transform:uppercase;color:#64748b;}
+ .total{font-weight:800;} .total td{border-top:2px solid #cbd5e1;} .muted{color:#94a3b8;} .lead{color:#7c3aed;font-size:12px;}
+ .cards{display:flex;gap:12px;margin:14px 0;} .card{flex:1;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;}
+ .card .lbl{font-size:11px;color:#64748b;text-transform:uppercase;} .card .val{font-size:20px;font-weight:800;margin-top:2px;}
+ .foot{margin-top:26px;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0;padding-top:12px;}
+ .btn{display:inline-block;background:#7c3aed;color:#fff;padding:10px 18px;border:none;border-radius:8px;font-weight:700;cursor:pointer;margin-bottom:18px;}
+ @media print{.btn{display:none;} body{margin:0;}}
+</style></head><body>
+<button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+<div class="head"><div class="brand">Skillmentor<span>.pk</span></div>
+ <div style="text-align:right"><div style="font-weight:700">Profit Share Report</div><div class="muted">${esc(b.name)} · ${dateStr}</div></div></div>
+<div class="cards">
+ <div class="card"><div class="lbl">Total Received</div><div class="val">${money(d.total)}</div></div>
+ <div class="card"><div class="lbl">Owner · 40%</div><div class="val">${money(d.owner)}</div></div>
+ <div class="card"><div class="lbl">Future Fund · 36%</div><div class="val">${money(d.future)}</div></div>
+</div>
+<h2>Revenue by Service</h2>
+<table><thead><tr><th>Service</th><th class="r">Received</th></tr></thead><tbody>${revRows}
+ <tr class="total"><td>Total received</td><td class="r">${money(d.total)}</td></tr></tbody></table>
+<h2>Distribution</h2>
+<table><tbody>
+ <tr><td>Owner (40%)</td><td class="r">${money(d.owner)}</td></tr>
+ <tr><td>Future Fund (36%)</td><td class="r">${money(d.future)}</td></tr>
+ <tr><td>Team Pool (24%)</td><td class="r">${money(teamPool)}</td></tr>
+ <tr class="total"><td>Grand total</td><td class="r">${money(d.owner+d.future+teamPool)}</td></tr></tbody></table>
+<h2>Team Pool Breakdown</h2>
+<table><thead><tr><th>Member</th><th class="r">Share</th></tr></thead><tbody>${teamRows}
+ <tr class="total"><td>Team total</td><td class="r">${money(teamPool)}</td></tr></tbody></table>
+<div class="foot">Generated ${dateStr} · Skillmentor.pk Revenue Dashboard.<br>Split rule: Owner 40% · Future fund 36% · Team pool 24% (a service lead earns 12% of that service, remainder split among the other members).</div>
+</body></html>`;
+    const blob = new Blob([html], { type:'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `ProfitShare_${b.name.replace(/\s+/g,'_')}_${now.toISOString().slice(0,10)}.html`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+};
+function SHARE_LEAD_BY_NAME(name){ return Object.values(SHARE_LEAD).includes(name); }
 </script>
 </body>
 </html>
