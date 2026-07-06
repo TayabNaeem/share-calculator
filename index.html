@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TECH CLUB — Revenue & Profit Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = { darkMode: 'class' };
+    </script>
+    <style>
+        :root {
+            --bg: #06070d;
+            --panel: rgba(255,255,255,0.03);
+            --stroke: rgba(255,255,255,0.08);
+        }
+        * { -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: #e5e7eb;
+            min-height: 100vh;
+        }
+        /* Ambient animated glow background */
+        .aurora {
+            position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+        }
+        .aurora::before, .aurora::after {
+            content: ""; position: absolute; width: 55vw; height: 55vw; border-radius: 50%;
+            filter: blur(120px); opacity: .35;
+        }
+        .aurora::before {
+            background: radial-gradient(circle, #6d28d9, transparent 60%);
+            top: -15vw; left: -10vw; animation: float1 18s ease-in-out infinite;
+        }
+        .aurora::after {
+            background: radial-gradient(circle, #0ea5e9, transparent 60%);
+            bottom: -20vw; right: -10vw; animation: float2 22s ease-in-out infinite;
+        }
+        @keyframes float1 { 0%,100%{ transform: translate(0,0) } 50%{ transform: translate(6vw,4vw) } }
+        @keyframes float2 { 0%,100%{ transform: translate(0,0) } 50%{ transform: translate(-6vw,-3vw) } }
+
+        .glass {
+            background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid var(--stroke);
+            backdrop-filter: blur(12px);
+        }
+        .card-hover { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+        .card-hover:hover { transform: translateY(-3px); border-color: rgba(139,92,246,0.4); box-shadow: 0 18px 40px -20px rgba(109,40,217,0.6); }
+
+        input, select { color-scheme: dark; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        .field {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--stroke);
+            border-radius: 0.85rem; padding: 0.7rem 0.9rem; outline: none; width: 100%;
+            transition: border-color .2s, box-shadow .2s; color: #f1f5f9;
+        }
+        .field:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.18); }
+        .field::placeholder { color: #64748b; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            box-shadow: 0 10px 30px -12px rgba(99,102,241,0.9);
+            transition: filter .2s, transform .1s;
+        }
+        .btn-primary:hover { filter: brightness(1.12); }
+        .btn-primary:active { transform: translateY(1px); }
+
+        .tab-btn { position: relative; transition: color .2s; white-space: nowrap; }
+        .tab-btn.active { color: #fff; }
+        .tab-btn.active::after {
+            content:""; position:absolute; left:12px; right:12px; bottom:-1px; height:2px; border-radius:2px;
+            background: linear-gradient(90deg,#a78bfa,#22d3ee);
+        }
+        .num { font-variant-numeric: tabular-nums; }
+
+        table { border-collapse: separate; border-spacing: 0; }
+        .tbl th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color:#94a3b8; font-weight:600; }
+        .tbl td, .tbl th { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .tbl tbody tr:hover { background: rgba(255,255,255,0.025); }
+
+        .hidden-view { display: none !important; }
+        ::-webkit-scrollbar { height: 8px; width: 8px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+        .fade-in { animation: fade .35s ease; }
+        @keyframes fade { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+        .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+    </style>
+</head>
+<body>
+<div class="aurora"></div>
+
+<!-- ================= CONFIG BANNER ================= -->
+<div id="config-banner" class="hidden-view relative z-50 max-w-3xl mx-auto mt-6 glass rounded-2xl p-5 text-sm text-amber-200 border-amber-500/30">
+    <b class="text-amber-300">⚠ Firebase not configured.</b>
+    Open <code class="text-amber-100">index.html</code> and paste your Firebase project config into the
+    <code class="text-amber-100">firebaseConfig</code> object near the bottom (see the <code>SETUP</code> comment). Until then, login and cloud sync won't work.
+</div>
+
+<!-- ================= AUTH ================= -->
+<div id="auth-container" class="relative z-10 max-w-md mx-auto mt-16 px-4">
+    <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs font-semibold text-violet-300 mb-4">● TECH CLUB</div>
+        <h1 class="text-3xl font-extrabold text-white tracking-tight">Revenue Dashboard</h1>
+        <p class="text-slate-400 mt-1">Sign in to manage batches, fees & profit shares.</p>
+    </div>
+    <div class="glass rounded-3xl p-8 shadow-2xl">
+        <h2 id="auth-title" class="text-xl font-bold text-white mb-5 text-center">Sign In</h2>
+        <div class="space-y-3">
+            <input id="email" type="email" placeholder="Email address" class="field">
+            <input id="password" type="password" placeholder="Password" class="field">
+            <button onclick="handleAuth()" id="auth-btn" class="btn-primary w-full text-white py-3 rounded-xl font-bold">Sign In</button>
+            <p class="text-center text-sm text-slate-400">
+                <span id="toggle-text">Don't have an account?</span>
+                <button onclick="toggleAuthMode()" class="text-violet-400 font-bold ml-1" id="toggle-btn">Sign Up</button>
+            </p>
+            <div class="relative flex items-center justify-center my-1">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
+                <span class="px-3 text-slate-500 text-xs font-medium" style="background:var(--bg)">or</span>
+            </div>
+            <button onclick="handleGoogleAuth()" class="w-full border border-white/10 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-white/5 transition text-slate-200">
+                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53L2.18 16.93C3.99 20.53 7.7 23 12 23z"/></svg>
+                Continue with Google
+            </button>
+            <p id="error-msg" class="text-rose-400 text-sm text-center font-medium min-h-[1rem]"></p>
+        </div>
+    </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app-container" class="relative z-10 max-w-7xl mx-auto px-4 md:px-6 py-6 hidden-view">
+    <!-- Header -->
+    <header class="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-lg" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">TC</div>
+            <div>
+                <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">Revenue & Profit Dashboard</h1>
+                <p id="user-line" class="text-slate-400 text-sm">—</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="sync-pill" class="badge glass text-slate-300">● synced</span>
+            <button onclick="signOutUser()" class="text-slate-400 hover:text-rose-400 font-semibold text-sm transition">Sign out</button>
+        </div>
+    </header>
+
+    <!-- KPI strip -->
+    <div id="kpi-strip" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+
+    <!-- Tabs -->
+    <div class="flex items-center gap-1 border-b border-white/10 mb-6 overflow-x-auto">
+        <button data-tab="students"   onclick="setTab('students')"   class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">👥 Students</button>
+        <button data-tab="installments" onclick="setTab('installments')" class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">💳 Installments</button>
+        <button data-tab="breakdown"  onclick="setTab('breakdown')"  class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">📦 Bundles & Courses</button>
+        <button data-tab="summary"    onclick="setTab('summary')"    class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">📊 Summary</button>
+        <button data-tab="share"      onclick="setTab('share')"      class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">🤝 Profit Share</button>
+    </div>
+
+    <!-- Batch selector (batch-scoped tabs) -->
+    <div id="batch-bar" class="flex items-center gap-2 mb-5 overflow-x-auto"></div>
+
+    <!-- Tab content -->
+    <div id="tab-content" class="fade-in"></div>
+</div>
+
+<!-- ================= MODAL ROOT ================= -->
+<div id="modal-root"></div>
+
+<!-- ================= FIREBASE + APP LOGIC ================= -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+    from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot }
+    from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/* =====================================================================
+   SETUP — PASTE YOUR FIREBASE CONFIG HERE
+   1. Go to https://console.firebase.google.com  → create a project (free)
+   2. Add a Web app (</>) and copy its firebaseConfig object
+   3. Enable Authentication → Email/Password  (and Google if you want it)
+   4. Create a Firestore Database (production or test mode)
+   5. Replace the placeholder values below with your own.
+   ===================================================================== */
+const firebaseConfig = (typeof __firebase_config !== 'undefined')
+  ? JSON.parse(__firebase_config)
+  : {
+      apiKey: "AIzaSyBH9s4TNFYlb4I0LP3E6kYSR_1iJ9JqKV4",
+      authDomain: "share-calculator-768c0.firebaseapp.com",
+      projectId: "share-calculator-768c0",
+      storageBucket: "share-calculator-768c0.firebasestorage.app",
+      messagingSenderId: "940212101506",
+      appId: "1:940212101506:web:7b2e27ba839569e270af9b",
+      measurementId: "G-8J1H4NHNGC"
+    };
+
+const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+if (!isConfigured) document.getElementById('config-banner').classList.remove('hidden-view');
+
+let auth, db, provider;
+try {
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    provider = new GoogleAuthProvider();
+} catch (e) { console.warn("Firebase init skipped:", e.message); }
+
+let isSignUp = false;
+window.toggleAuthMode = () => {
+    isSignUp = !isSignUp;
+    el('auth-title').innerText = isSignUp ? "Create Account" : "Sign In";
+    el('auth-btn').innerText   = isSignUp ? "Sign Up" : "Sign In";
+    el('toggle-text').innerText= isSignUp ? "Already have an account?" : "Don't have an account?";
+    el('toggle-btn').innerText = isSignUp ? "Sign In" : "Sign Up";
+};
+window.handleAuth = async () => {
+    const email = el('email').value, password = el('password').value, error = el('error-msg');
+    if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
+    try {
+        if (isSignUp) await createUserWithEmailAndPassword(auth, email, password);
+        else await signInWithEmailAndPassword(auth, email, password);
+        error.innerText = '';
+    } catch (e) { error.innerText = friendlyErr(e); }
+};
+window.handleGoogleAuth = async () => {
+    const error = el('error-msg');
+    if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
+    try { await signInWithPopup(auth, provider); }
+    catch (e) { error.innerText = friendlyErr(e); }
+};
+window.signOutUser = () => signOut(auth);
+function friendlyErr(e){ return (e.code||'').replace('auth/','').replace(/-/g,' ') || e.message; }
+
+/* ---------- Persistence ---------- */
+let userRef = null, saveTimer = null, unsub = null;
+function bootUser(user){
+    userRef = doc(db, "dashboards", user.uid);
+    if (unsub) unsub();
+    unsub = onSnapshot(userRef, (snap) => {
+        setSync(true);
+        if (snap.metadata.hasPendingWrites) return;     // ignore local echoes
+        if (snap.exists() && snap.data().state) {
+            window.__loadState(snap.data().state);
+        } else {
+            window.__loadState(null);                   // first run → seed defaults
+            queueSave();
+        }
+    }, () => setSync(false));
+}
+window.__queueSave = () => {
+    if (!userRef) return;
+    setSync(false, "saving…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+        try { await setDoc(userRef, { state: window.__getState() }); setSync(true); }
+        catch(e){ setSync(false, "save failed"); console.error(e); }
+    }, 500);
+};
+function queueSave(){ window.__queueSave(); }
+function setSync(ok, label){
+    const p = el('sync-pill'); if(!p) return;
+    p.innerHTML = ok ? "● synced" : ("● " + (label||"offline"));
+    p.style.color = ok ? "#34d399" : "#fbbf24";
+}
+
+onAuthStateChanged(auth || {}, (user) => {
+    if (user) {
+        el('auth-container').classList.add('hidden-view');
+        el('config-banner').classList.add('hidden-view');
+        el('app-container').classList.remove('hidden-view');
+        el('user-line').innerText = user.email || "Signed in";
+        bootUser(user);
+    } else {
+        el('app-container').classList.add('hidden-view');
+        el('auth-container').classList.remove('hidden-view');
+        if (!isConfigured) el('config-banner').classList.remove('hidden-view');
+    }
+});
+function el(id){ return document.getElementById(id); }
+</script>
+
+<!-- ================= APP STATE + RENDERING (non-module, global) ================= -->
+<script>
+/* ---------- Reference data ---------- */
+const COURSES = [
+    { id:'vibeCoding', name:'Vibe Coding' },
+    { id:'automation', name:'Ai Automation' },
+    { id:'chatbot',    name:'Ai Chatbot' },
+    { id:'ghl',        name:'Go High Level' },
+    { id:'shopify',    name:'Shopify' },
+    { id:'seo',        name:'SEO' },
+    { id:'wordpress',  name:'WordPress' },
+];
+const COURSE_NAME = Object.fromEntries(COURSES.map(c => [c.id, c.name]));
+const BUNDLES = [
+    { id:'single', name:'Single Course', count:1, accent:'#22d3ee' },
+    { id:'double', name:'Double Bundle', count:2, accent:'#a78bfa' },
+    { id:'triple', name:'Triple Bundle', count:3, accent:'#f472b6' },
+];
+const BUNDLE = Object.fromEntries(BUNDLES.map(b => [b.id, b]));
+
+/* Profit-share config (from original logic) */
+const TEAM = ["Ammad", "Tayyab Naeem", "Umar", "Khizar", "Tayyab Ali"];
+const SHARE_LEAD = { vibeCoding:null, automation:"Ammad", chatbot:"Tayyab Naeem", ghl:"Ammad", shopify:"Tayyab Naeem", seo:"Tayyab Ali", wordpress:"Umar" };
+
+/* ---------- State ---------- */
+let state = null;
+let activeBatchId = null;
+let activeTab = 'students';
+
+function seedState(){
+    const id = 'b' + Date.now();
+    return {
+        batches: [
+            { id:'b_batch2', name:'Batch 2', previousReceived:0, students:[], share:{} },
+            { id, name:'Batch 5', previousReceived:0, students:[], share:{} },
+        ],
+        activeBatchId: id,
+    };
+}
+
+window.__getState = () => state;
+window.__loadState = (incoming) => {
+    if (!incoming) { state = seedState(); }
+    else {
+        state = incoming;
+        // migrate / guard
+        state.batches = (state.batches||[]).map(b => ({
+            id: b.id || ('b'+Math.random().toString(36).slice(2)),
+            name: b.name || 'Batch',
+            previousReceived: num(b.previousReceived),
+            students: (b.students||[]).map(normalizeStudent),
+            share: b.share || {},
+        }));
+        if (!state.batches.length) state = seedState();
+    }
+    activeBatchId = state.activeBatchId && state.batches.some(b=>b.id===state.activeBatchId)
+        ? state.activeBatchId : state.batches[0].id;
+    render();
+};
+function normalizeStudent(s){
+    return {
+        id: s.id || ('s'+Math.random().toString(36).slice(2)),
+        name: s.name||'', contact: s.contact||'',
+        bundleType: s.bundleType || 'single',
+        courses: Array.isArray(s.courses) ? s.courses : [],
+        feePaid: num(s.feePaid), feePending: num(s.feePending), refunded: num(s.refunded),
+        date: s.date || '',
+        installments: Array.isArray(s.installments) ? s.installments : [],
+    };
+}
+function save(){ state.activeBatchId = activeBatchId; if (window.__queueSave) window.__queueSave(); }
+
+/* ---------- Helpers ---------- */
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function money(n){ return 'Rs ' + Math.round(num(n)).toLocaleString(); }
+function activeBatch(){ return state.batches.find(b => b.id === activeBatchId) || state.batches[0]; }
+function programLabel(s){
+    if (!s.courses || !s.courses.length) return BUNDLE[s.bundleType]?.name || '—';
+    if (s.bundleType === 'single') return COURSE_NAME[s.courses[0]] || '—';
+    return s.courses.map(c => COURSE_NAME[c] || c).join(' + ');
+}
+function esc(str){ return String(str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ====================================================================
+   NAVIGATION
+   ==================================================================== */
+window.setTab = (t) => { activeTab = t; render(); };
+window.setBatch = (id) => { activeBatchId = id; save(); render(); };
+
+window.addBatch = () => {
+    const n = state.batches.length;
+    const guessNum = Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1;
+    const id = 'b' + Date.now();
+    state.batches.push({ id, name:`Batch ${guessNum}`, previousReceived:0, students:[], share:{} });
+    activeBatchId = id; save(); render();
+};
+window.renameBatch = (id) => {
+    const b = state.batches.find(x=>x.id===id); if(!b) return;
+    const v = prompt("Batch name:", b.name); if (v && v.trim()) { b.name = v.trim(); save(); render(); }
+};
+window.deleteBatch = (id) => {
+    if (state.batches.length <= 1) return alert("Keep at least one batch.");
+    const b = state.batches.find(x=>x.id===id);
+    if (!confirm(`Delete "${b?.name}" and all its students?`)) return;
+    state.batches = state.batches.filter(x=>x.id!==id);
+    if (activeBatchId===id) activeBatchId = state.batches[0].id;
+    save(); render();
+};
+window.setPrevReceived = (v) => { activeBatch().previousReceived = num(v); save(); renderKpis(); };
+
+/* ====================================================================
+   RENDER ROOT
+   ==================================================================== */
+function render(){
+    if (!state) return;
+    // tabs active state
+    document.querySelectorAll('.tab-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === activeTab));
+
+    renderKpis();
+    renderBatchBar();
+
+    const c = document.getElementById('tab-content');
+    c.classList.remove('fade-in'); void c.offsetWidth; c.classList.add('fade-in');
+    if (activeTab === 'students')      c.innerHTML = viewStudents();
+    else if (activeTab === 'installments') c.innerHTML = viewInstallments();
+    else if (activeTab === 'breakdown')c.innerHTML = viewBreakdown();
+    else if (activeTab === 'summary')  c.innerHTML = viewSummary();
+    else if (activeTab === 'share')  { c.innerHTML = viewShare(); wireShare(); }
+}
+
+function renderBatchBar(){
+    const bar = document.getElementById('batch-bar');
+    const batchScoped = ['students','breakdown','share'].includes(activeTab);
+    if (!batchScoped) { bar.innerHTML = ''; bar.classList.add('hidden-view'); return; }
+    bar.classList.remove('hidden-view');
+    bar.innerHTML = state.batches.map(b => `
+        <button onclick="setBatch('${b.id}')" ondblclick="renameBatch('${b.id}')"
+            class="px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${b.id===activeBatchId?'btn-primary text-white':'glass text-slate-300 hover:text-white'}">
+            ${esc(b.name)}
+        </button>`).join('')
+        + `<button onclick="addBatch()" class="px-3 py-2 rounded-xl text-sm font-bold text-violet-300 glass hover:text-white transition">+ Batch</button>`;
+}
+
+/* ---------- KPI strip (global totals) ---------- */
+function globalTotals(){
+    let received=0, pending=0, refunded=0, students=0;
+    state.batches.forEach(b => b.students.forEach(s => {
+        received += num(s.feePaid); pending += num(s.feePending); refunded += num(s.refunded); students++;
+    }));
+    return { received, pending, refunded, students };
+}
+function renderKpis(){
+    const t = globalTotals();
+    const cards = [
+        { label:'Total Received', val:money(t.received), sub:`across ${state.batches.length} batches`, grad:'linear-gradient(135deg,#059669,#10b981)' },
+        { label:'Total Pending',  val:money(t.pending),  sub:'outstanding fees', grad:'linear-gradient(135deg,#e11d48,#f43f5e)' },
+        { label:'Refunded',       val:money(t.refunded), sub:'returned to students', grad:'linear-gradient(135deg,#d97706,#f59e0b)' },
+        { label:'Students',       val:t.students,        sub:'enrolled total', grad:'linear-gradient(135deg,#7c3aed,#6366f1)' },
+    ];
+    document.getElementById('kpi-strip').innerHTML = cards.map(c => `
+        <div class="glass card-hover rounded-2xl p-5 relative overflow-hidden">
+            <div class="absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-25" style="background:${c.grad}"></div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">${c.label}</p>
+            <p class="text-2xl font-extrabold text-white mt-1 num">${c.val}</p>
+            <p class="text-xs text-slate-500 mt-1">${c.sub}</p>
+        </div>`).join('');
+}
+
+/* ====================================================================
+   TAB: STUDENTS
+   ==================================================================== */
+function viewStudents(){
+    const b = activeBatch();
+    const rows = b.students.map((s,i) => {
+        const total = num(s.feePaid)+num(s.feePending);
+        const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
+        const onInst = num(s.feePending) > 0;
+        return `
+        <tr>
+            <td class="text-slate-500 num">${i+1}</td>
+            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'text-slate-600\'>—</span>'}</td>
+            <td class="text-slate-300 num">${esc(s.contact)||'—'}</td>
+            <td><span class="badge" style="background:${BUNDLE[s.bundleType]?.accent}22;color:${BUNDLE[s.bundleType]?.accent}">${BUNDLE[s.bundleType]?.name||'—'}</span></td>
+            <td class="text-slate-200">${esc(programLabel(s))}</td>
+            <td class="text-right num text-emerald-400 font-semibold">${money(s.feePaid)}</td>
+            <td class="text-right num ${onInst?'text-rose-400':'text-slate-500'} font-semibold">${money(s.feePending)}</td>
+            <td class="min-w-[120px]">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,#34d399,#22d3ee)" class="h-full"></div></div>
+                    <span class="text-xs text-slate-400 num">${pct}%</span>
+                </div>
+            </td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openStudentModal('${s.id}')" class="text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
+                <button onclick="deleteStudent('${s.id}')" class="text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const rec = b.students.reduce((a,s)=>a+num(s.feePaid),0);
+    const pen = b.students.reduce((a,s)=>a+num(s.feePending),0);
+
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Students</h2>
+                <p class="text-slate-400 text-sm">${b.students.length} enrolled · <span class="text-emerald-400">${money(rec)}</span> received · <span class="text-rose-400">${money(pen)}</span> pending</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="deleteBatch('${b.id}')" class="glass px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-rose-400">Delete batch</button>
+                <button onclick="openStudentModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Student</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr>
+                    <th>#</th><th>Name</th><th>Contact</th><th>Bundle</th><th>Program</th>
+                    <th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th>
+                </tr></thead>
+                <tbody>${rows || `<tr><td colspan="9" class="text-center text-slate-500 py-10">No students yet. Click <b class="text-violet-300">+ Add Student</b> to start.</td></tr>`}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+
+window.deleteStudent = (id) => {
+    const b = activeBatch();
+    const s = b.students.find(x=>x.id===id);
+    if (!confirm(`Remove ${s?.name||'this student'}?`)) return;
+    b.students = b.students.filter(x=>x.id!==id); save(); render();
+};
+
+/* ---------- Student modal (add / edit) ---------- */
+window.openStudentModal = (id) => {
+    const b = activeBatch();
+    const editing = id ? b.students.find(x=>x.id===id) : null;
+    const s = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], feePaid:'', feePending:'', refunded:'', name:'', contact:'', date:'' };
+    const courseChecks = COURSES.map(c => `
+        <label class="flex items-center gap-2 px-3 py-2 rounded-lg glass cursor-pointer text-sm">
+            <input type="checkbox" class="course-chk accent-violet-500" value="${c.id}" ${s.courses.includes(c.id)?'checked':''}>
+            <span class="text-slate-200">${c.name}</span>
+        </label>`).join('');
+
+    document.getElementById('modal-root').innerHTML = `
+    <div class="fixed inset-0 z-[60] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(2,4,10,0.7)" onclick="if(event.target===this)closeModal()">
+        <div class="glass rounded-3xl p-6 md:p-8 w-full max-w-2xl my-6 fade-in" style="background:#0b0e17">
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-bold text-white">${editing?'Edit':'Add'} Student · <span class="text-violet-300">${esc(activeBatch().name)}</span></h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="text-xs font-semibold text-slate-400">Name</label><input id="m-name" class="field mt-1" value="${esc(s.name)}" placeholder="Student name"></div>
+                <div><label class="text-xs font-semibold text-slate-400">Contact</label><input id="m-contact" class="field mt-1" value="${esc(s.contact)}" placeholder="03xx xxxxxxx"></div>
+                <div><label class="text-xs font-semibold text-slate-400">Bundle Type</label>
+                    <select id="m-bundle" class="field mt-1" onchange="modalBundleChange()">
+                        ${BUNDLES.map(x=>`<option value="${x.id}" ${s.bundleType===x.id?'selected':''}>${x.name} (${x.count} course${x.count>1?'s':''})</option>`).join('')}
+                    </select>
+                </div>
+                <div><label class="text-xs font-semibold text-slate-400">Enroll date</label><input id="m-date" class="field mt-1" value="${esc(s.date)}" placeholder="e.g. 28 June"></div>
+            </div>
+            <div class="mt-4">
+                <label class="text-xs font-semibold text-slate-400">Course selection <span id="m-course-hint" class="text-slate-500"></span></label>
+                <div id="m-courses" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">${courseChecks}</div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div><label class="text-xs font-semibold text-emerald-400">Fee Paid</label><input id="m-paid" type="number" class="field mt-1" value="${s.feePaid}" placeholder="0"></div>
+                <div><label class="text-xs font-semibold text-rose-400">Fee Pending</label><input id="m-pending" type="number" class="field mt-1" value="${s.feePending}" placeholder="0"></div>
+                <div><label class="text-xs font-semibold text-amber-400">Refunded</label><input id="m-refund" type="number" class="field mt-1" value="${s.refunded}" placeholder="0"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Cancel</button>
+                <button onclick="saveStudent('${editing?editing.id:''}')" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add student'}</button>
+            </div>
+        </div>
+    </div>`;
+    modalBundleChange();
+};
+window.modalBundleChange = () => {
+    const type = document.getElementById('m-bundle').value;
+    const max = BUNDLE[type].count;
+    document.getElementById('m-course-hint').innerText = `— pick ${max} course${max>1?'s':''}`;
+    const chks = [...document.querySelectorAll('.course-chk')];
+    const checked = chks.filter(c=>c.checked);
+    if (checked.length > max) checked.slice(max).forEach(c=>c.checked=false);
+    chks.forEach(c => {
+        c.onchange = () => {
+            const now = chks.filter(x=>x.checked);
+            if (now.length > max) { c.checked = false; }
+        };
+    });
+};
+window.closeModal = () => { document.getElementById('modal-root').innerHTML = ''; };
+window.saveStudent = (id) => {
+    const b = activeBatch();
+    const courses = [...document.querySelectorAll('.course-chk')].filter(c=>c.checked).map(c=>c.value);
+    const data = {
+        name: document.getElementById('m-name').value.trim(),
+        contact: document.getElementById('m-contact').value.trim(),
+        bundleType: document.getElementById('m-bundle').value,
+        courses,
+        date: document.getElementById('m-date').value.trim(),
+        feePaid: num(document.getElementById('m-paid').value),
+        feePending: num(document.getElementById('m-pending').value),
+        refunded: num(document.getElementById('m-refund').value),
+    };
+    if (!data.name) return alert("Please enter a name.");
+    if (id) {
+        const s = b.students.find(x=>x.id===id);
+        Object.assign(s, data);
+    } else {
+        b.students.push(normalizeStudent({ ...data, installments: [] }));
+    }
+    save(); closeModal(); render();
+};
+
+/* ====================================================================
+   TAB: INSTALLMENTS  (all batches, pending > 0)
+   ==================================================================== */
+function viewInstallments(){
+    const list = [];
+    state.batches.forEach(b => b.students.forEach(s => { if (num(s.feePending) > 0) list.push({ b, s }); }));
+    list.sort((a,z)=> num(z.s.feePending)-num(a.s.feePending));
+    const totalPending = list.reduce((a,x)=>a+num(x.s.feePending),0);
+
+    const rows = list.map(({b,s}) => {
+        const total = num(s.feePaid)+num(s.feePending);
+        const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
+        return `
+        <tr>
+            <td class="font-semibold text-white">${esc(s.name)}<div class="text-xs text-slate-500">${esc(s.contact)||''}</div></td>
+            <td><span class="badge glass text-slate-300">${esc(b.name)}</span></td>
+            <td class="text-slate-300">${esc(programLabel(s))}</td>
+            <td class="text-right num text-emerald-400">${money(s.feePaid)}</td>
+            <td class="text-right num text-rose-400 font-bold">${money(s.feePending)}</td>
+            <td class="min-w-[140px]">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-2 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,#34d399,#22d3ee)" class="h-full"></div></div>
+                    <span class="text-xs text-slate-400 num">${pct}%</span>
+                </div>
+            </td>
+            <td class="text-right">
+                <button onclick="recordPayment('${b.id}','${s.id}')" class="btn-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg">Record payment</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">Students on Installments</h2>
+                <p class="text-slate-400 text-sm">${list.length} students owe <span class="text-rose-400 font-semibold">${money(totalPending)}</span> in total (all batches)</p>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Student</th><th>Batch</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="7" class="text-center text-slate-500 py-10">🎉 No pending balances. Everyone is fully paid.</td></tr>`}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+window.recordPayment = (bid, sid) => {
+    const b = state.batches.find(x=>x.id===bid); const s = b.students.find(x=>x.id===sid);
+    const v = prompt(`Record an installment for ${s.name}\nPending: ${money(s.feePending)}\n\nAmount received now:`, "");
+    if (v === null) return;
+    const amt = num(v); if (amt <= 0) return;
+    const applied = Math.min(amt, num(s.feePending));
+    s.feePaid = num(s.feePaid) + applied;
+    s.feePending = num(s.feePending) - applied;
+    s.installments = s.installments || [];
+    s.installments.push({ amount: applied, date: new Date().toISOString().slice(0,10) });
+    save(); render();
+};
+
+/* ====================================================================
+   TAB: BUNDLES & COURSES BREAKDOWN (active batch)
+   ==================================================================== */
+function groupByProgram(students){
+    const map = {};
+    students.forEach(s => {
+        const key = programLabel(s);
+        if (!map[key]) map[key] = { program:key, count:0, received:0, pending:0 };
+        map[key].count++; map[key].received += num(s.feePaid); map[key].pending += num(s.feePending);
+    });
+    return Object.values(map);
+}
+function viewBreakdown(){
+    const b = activeBatch();
+    const sections = BUNDLES.map(bd => {
+        const students = b.students.filter(s => s.bundleType === bd.id);
+        const groups = groupByProgram(students);
+        const rec = students.reduce((a,s)=>a+num(s.feePaid),0);
+        const pen = students.reduce((a,s)=>a+num(s.feePending),0);
+        const rows = groups.map(g => `
+            <tr>
+                <td class="num text-slate-400">${g.count}</td>
+                <td class="text-white font-medium">${esc(g.program)}</td>
+                <td class="text-right num text-emerald-400">${money(g.received)}</td>
+                <td class="text-right num text-rose-400">${money(g.pending)}</td>
+                <td class="text-right num text-slate-200 font-semibold">${money(g.received+g.pending)}</td>
+            </tr>`).join('');
+        return `
+        <div class="glass rounded-2xl overflow-hidden">
+            <div class="px-5 py-3 flex items-center justify-between" style="background:${bd.accent}14;border-bottom:1px solid var(--stroke)">
+                <h3 class="font-bold text-white flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:${bd.accent}"></span>${bd.name}</h3>
+                <span class="text-xs text-slate-400">${students.length} student${students.length!==1?'s':''}</span>
+            </div>
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Students</th><th>Course / Combo</th><th class="text-right">Received</th><th class="text-right">Pending</th><th class="text-right">Total</th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="5" class="text-center text-slate-600 py-6">No ${bd.name.toLowerCase()} enrolments.</td></tr>`}</tbody>
+                ${groups.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
+                    <td colspan="2" class="text-slate-300">Subtotal</td>
+                    <td class="text-right num text-emerald-400">${money(rec)}</td>
+                    <td class="text-right num text-rose-400">${money(pen)}</td>
+                    <td class="text-right num">${money(rec+pen)}</td></tr></tfoot>`:''}
+            </table>
+        </div>`;
+    }).join('');
+
+    const rec = b.students.reduce((a,s)=>a+num(s.feePaid),0);
+    const pen = b.students.reduce((a,s)=>a+num(s.feePending),0);
+    const prev = num(b.previousReceived);
+    return `
+    <div class="space-y-5">
+        <div class="glass rounded-3xl p-6 md:p-7">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white">${esc(b.name)} — Bundle & Course Breakdown</h2>
+                    <p class="text-slate-400 text-sm">Auto-calculated from student records.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-semibold text-slate-400">Previous batch received</label>
+                    <input type="number" value="${prev||''}" oninput="setPrevReceived(this.value)" placeholder="0" class="field w-40">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
+                ${miniStat('Received (this batch)', money(rec), '#34d399')}
+                ${miniStat('Pending', money(pen), '#fb7185')}
+                ${miniStat('Total incl. previous', money(rec+prev), '#a78bfa')}
+                ${miniStat('Total with pending', money(rec+prev+pen), '#22d3ee')}
+            </div>
+        </div>
+        ${sections}
+    </div>`;
+}
+function miniStat(label, val, color){
+    return `<div class="rounded-xl p-4" style="background:${color}14;border:1px solid ${color}33">
+        <p class="text-xs font-semibold" style="color:${color}">${label}</p>
+        <p class="text-lg font-extrabold text-white num mt-0.5">${val}</p></div>`;
+}
+
+/* ====================================================================
+   TAB: SUMMARY (all batches + by program)
+   ==================================================================== */
+function viewSummary(){
+    // by batch
+    let gRec=0,gPen=0,gRef=0,gPrev=0;
+    const batchRows = state.batches.map(b => {
+        const rec=b.students.reduce((a,s)=>a+num(s.feePaid),0);
+        const pen=b.students.reduce((a,s)=>a+num(s.feePending),0);
+        const ref=b.students.reduce((a,s)=>a+num(s.refunded),0);
+        const prev=num(b.previousReceived);
+        gRec+=rec; gPen+=pen; gRef+=ref; gPrev+=prev;
+        return `<tr>
+            <td class="font-semibold text-white">${esc(b.name)}</td>
+            <td class="text-right num text-slate-400">${b.students.length}</td>
+            <td class="text-right num text-rose-400">${money(pen)}</td>
+            <td class="text-right num text-emerald-400">${money(rec)}</td>
+            <td class="text-right num text-amber-400">${money(ref)}</td>
+            <td class="text-right num text-white font-bold">${money(rec+pen)}</td>
+        </tr>`;
+    }).join('');
+
+    // by program across all batches
+    const all = state.batches.flatMap(b=>b.students);
+    const progs = groupByProgram(all).sort((a,z)=>z.received-a.received);
+    const maxRec = Math.max(1, ...progs.map(p=>p.received));
+    const progRows = progs.map(p => `
+        <tr>
+            <td class="text-white font-medium">${esc(p.program)}</td>
+            <td class="text-right num text-slate-400">${p.count}</td>
+            <td class="text-right num text-emerald-400">${money(p.received)}</td>
+            <td class="text-right num text-rose-400">${money(p.pending)}</td>
+            <td class="w-40"><div class="h-2 rounded-full bg-white/10 overflow-hidden"><div style="width:${Math.round(p.received/maxRec*100)}%;background:linear-gradient(90deg,#7c3aed,#22d3ee)" class="h-full"></div></div></td>
+        </tr>`).join('');
+
+    // batch bar chart
+    const maxBar = Math.max(1, ...state.batches.map(b=>b.students.reduce((a,s)=>a+num(s.feePaid)+num(s.feePending),0)));
+    const bars = state.batches.map(b => {
+        const rec=b.students.reduce((a,s)=>a+num(s.feePaid),0);
+        const pen=b.students.reduce((a,s)=>a+num(s.feePending),0);
+        const total=rec+pen;
+        return `<div class="flex flex-col items-center gap-2 flex-1 min-w-[54px]">
+            <div class="w-full flex items-end justify-center" style="height:150px">
+                <div class="w-9 rounded-t-lg relative overflow-hidden flex flex-col justify-end" style="height:${Math.max(4,Math.round(total/maxBar*150))}px;background:rgba(255,255,255,0.06)">
+                    <div style="height:${total>0?Math.round(rec/total*100):0}%;background:linear-gradient(180deg,#34d399,#059669)"></div>
+                </div>
+            </div>
+            <span class="text-[11px] text-slate-400 num">${money(total).replace('Rs ','')}</span>
+            <span class="text-xs text-slate-500 font-medium">${esc(b.name)}</span>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="space-y-5">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div class="glass rounded-3xl p-6 lg:col-span-2">
+                <h2 class="text-lg font-bold text-white mb-1">All Batches Overview</h2>
+                <p class="text-slate-400 text-sm mb-4">Received vs total (received + pending) per batch.</p>
+                <div class="flex items-end gap-3 justify-around px-2">${bars}</div>
+                <div class="flex items-center gap-4 mt-4 text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#059669"></span>Received</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:rgba(255,255,255,0.12)"></span>Pending</span>
+                </div>
+            </div>
+            <div class="glass rounded-3xl p-6 flex flex-col justify-center">
+                <h2 class="text-lg font-bold text-white mb-4">Grand Totals</h2>
+                <div class="space-y-3">
+                    ${sumRow('Received', money(gRec), '#34d399')}
+                    ${sumRow('Pending', money(gPen), '#fb7185')}
+                    ${sumRow('Refunded', money(gRef), '#fbbf24')}
+                    ${sumRow('Prev. carried', money(gPrev), '#a78bfa')}
+                    <div class="border-t border-white/10 pt-3">${sumRow('Grand total (rec+pend)', money(gRec+gPen), '#22d3ee', true)}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <h2 class="text-lg font-bold text-white mb-4">Batch Summary</h2>
+            <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Batch</th><th class="text-right">Students</th><th class="text-right">Pending</th><th class="text-right">Received</th><th class="text-right">Refunded</th><th class="text-right">Total</th></tr></thead>
+                <tbody>${batchRows}</tbody>
+                <tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
+                    <td>All batches</td><td class="text-right num text-slate-300">${all.length}</td>
+                    <td class="text-right num text-rose-400">${money(gPen)}</td>
+                    <td class="text-right num text-emerald-400">${money(gRec)}</td>
+                    <td class="text-right num text-amber-400">${money(gRef)}</td>
+                    <td class="text-right num">${money(gRec+gPen)}</td>
+                </tr></tfoot>
+            </table>
+            </div>
+        </div>
+
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <h2 class="text-lg font-bold text-white mb-1">Total Received by Training Program</h2>
+            <p class="text-slate-400 text-sm mb-4">Across all batches (single courses & bundles counted as their combo).</p>
+            <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Program / Combo</th><th class="text-right">Students</th><th class="text-right">Received</th><th class="text-right">Pending</th><th>Share of revenue</th></tr></thead>
+                <tbody>${progRows || `<tr><td colspan="5" class="text-center text-slate-600 py-6">No enrolments yet.</td></tr>`}</tbody>
+            </table>
+            </div>
+        </div>
+    </div>`;
+}
+function sumRow(label, val, color, big){
+    return `<div class="flex items-center justify-between">
+        <span class="text-sm text-slate-400">${label}</span>
+        <span class="num font-${big?'extrabold text-xl':'bold text-base'}" style="color:${color}">${val}</span></div>`;
+}
+
+/* ====================================================================
+   TAB: PROFIT SHARE  (original logic, dark themed)
+   Owner 40% · Future 36% · remaining 24% split among team (lead gets 12%)
+   ==================================================================== */
+function viewShare(){
+    const b = activeBatch();
+    const inputs = COURSES.map(c => `
+        <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1">${c.name}${SHARE_LEAD[c.id]?` · <span class="text-violet-300">${SHARE_LEAD[c.id]}</span>`:''}</label>
+            <input type="number" data-service="${c.id}" oninput="handleShareInput('${c.id}', this.value)" value="${b.share[c.id]||''}" class="field share-input" placeholder="0">
+        </div>`).join('');
+    const teamRows = TEAM.map(name => `
+        <div class="flex justify-between items-center bg-white/5 px-4 py-2.5 rounded-xl text-sm">
+            <span class="text-slate-300">${name}</span>
+            <span id="res-${cssId(name)}" class="font-bold text-white num">Rs 0</span>
+        </div>`).join('');
+
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Profit Distribution</h2>
+                <p class="text-slate-400 text-sm">Owner 40% · Future fund 36% · Team pool 24% (service lead earns 12%).</p>
+            </div>
+            <button onclick="autofillShare()" class="glass px-4 py-2.5 rounded-xl text-sm font-semibold text-violet-300 hover:text-white">↻ Auto-fill from received</button>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Revenue by Service</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
+            </div>
+            <div class="rounded-2xl p-6 text-white" style="background:linear-gradient(160deg,#0b0e1a,#131a2e);border:1px solid var(--stroke)">
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="text-lg font-bold">Distribution</h3>
+                    <span class="badge" style="background:#22d3ee22;color:#22d3ee">Total <span id="share-total" class="num">Rs 0</span></span>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between border-b border-white/10 pb-3"><span class="text-slate-400">Owner (40%)</span><span id="owner-val" class="font-bold text-emerald-400 num">Rs 0</span></div>
+                    <div class="flex justify-between border-b border-white/10 pb-3"><span class="text-slate-400">Future Fund (36%)</span><span id="future-val" class="font-bold text-indigo-400 num">Rs 0</span></div>
+                    <p class="text-xs text-slate-500 pt-2 pb-1">Team pool (24%)</p>
+                    ${teamRows}
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+function cssId(name){ return name.replace(/\s+/g,'_'); }
+window.handleShareInput = (serviceId, val) => {
+    activeBatch().share[serviceId] = num(val);
+    computeShare(); save();
+};
+window.autofillShare = () => {
+    const b = activeBatch();
+    // sum received for single-course students per course
+    const perCourse = {};
+    b.students.forEach(s => { if (s.bundleType==='single' && s.courses[0]) perCourse[s.courses[0]] = (perCourse[s.courses[0]]||0)+num(s.feePaid); });
+    b.share = perCourse; save(); render();
+};
+function wireShare(){ computeShare(); }
+function computeShare(){
+    const b = activeBatch();
+    let ownerTotal=0, futureTotal=0, grand=0;
+    const results = {}; TEAM.forEach(n=>results[n]=0);
+    COURSES.forEach(c => {
+        const val = num(b.share[c.id]); grand += val;
+        ownerTotal += val*0.40; futureTotal += val*0.36;
+        const lead = SHARE_LEAD[c.id];
+        const pool = val*0.24;
+        if (lead) {
+            results[lead] += val*0.12;
+            const split = (val*0.12)/(TEAM.length-1);
+            TEAM.forEach(n => { if (n!==lead) results[n]+=split; });
+        } else {
+            const split = pool/TEAM.length;
+            TEAM.forEach(n => results[n]+=split);
+        }
+    });
+    setTxt('owner-val', money(ownerTotal));
+    setTxt('future-val', money(futureTotal));
+    setTxt('share-total', money(grand));
+    TEAM.forEach(n => setTxt('res-'+cssId(n), money(results[n])));
+}
+function setTxt(id,v){ const e=document.getElementById(id); if(e) e.innerText=v; }
+</script>
+</body>
+</html>
