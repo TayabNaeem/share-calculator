@@ -206,6 +206,7 @@
         <button data-tab="installments" onclick="setTab('installments')" class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">💳 Installments</button>
         <button data-tab="breakdown"  onclick="setTab('breakdown')"  class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">📦 Bundles & Courses</button>
         <button data-tab="previous"   onclick="setTab('previous')"   class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">🔁 Previous Batch</button>
+        <button data-tab="refunds"    onclick="setTab('refunds')"    class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">💸 Fee Refund</button>
         <button data-tab="summary"    onclick="setTab('summary')"    class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">📊 Summary</button>
         <button data-tab="share"      onclick="setTab('share')"      class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">🤝 Profit Share</button>
     </div>
@@ -679,8 +680,8 @@ function seedState(){
         companyName: 'Skillmentor.pk',
         logo: '',
         batches: [
-            { id:'b_batch2', name:'Batch 2', students:[], previous:[], share:{} },
-            { id, name:'Batch 5', students:[], previous:[], share:{} },
+            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], share:{} },
+            { id, name:'Batch 5', students:[], previous:[], refunds:[], share:{} },
         ],
         activeBatchId: id,
     };
@@ -698,11 +699,20 @@ window.__loadState = (incoming) => {
             if (!previous.length && num(b.previousReceived) > 0) {
                 previous = [ normalizePrev({ bundleType:'single', courses:[], received:num(b.previousReceived), pending:0 }) ];
             }
+            let refunds = Array.isArray(b.refunds) ? b.refunds.map(normalizeRefund) : [];
+            // migrate legacy per-student "refunded" amounts into refund entries
+            (b.students||[]).forEach(s => {
+                if (num(s.refunded) > 0) refunds.push(normalizeRefund({
+                    name: s.name, contact: s.contact, bundleType: s.bundleType, courses: s.courses,
+                    amount: num(s.refunded), date: s.date, reason: 'Migrated from student record'
+                }));
+            });
             return {
                 id: b.id || ('b'+Math.random().toString(36).slice(2)),
                 name: b.name || 'Batch',
                 students: (b.students||[]).map(normalizeStudent),
                 previous,
+                refunds,
                 share: b.share || {},
             };
         });
@@ -718,11 +728,21 @@ function normalizeStudent(s){
         name: s.name||'', contact: s.contact||'',
         bundleType: s.bundleType || 'single',
         courses: Array.isArray(s.courses) ? s.courses : [],
-        feePaid: num(s.feePaid), feePending: num(s.feePending), refunded: num(s.refunded),
+        feePaid: num(s.feePaid), feePending: num(s.feePending),
         date: s.date || '',
         installments: Array.isArray(s.installments) ? s.installments : [],
     };
 }
+function normalizeRefund(r){
+    return {
+        id: r.id || ('r'+Math.random().toString(36).slice(2)),
+        name: r.name||'', contact: r.contact||'',
+        bundleType: r.bundleType || 'single',
+        courses: Array.isArray(r.courses) ? r.courses : [],
+        amount: num(r.amount), date: r.date || '', reason: r.reason || '',
+    };
+}
+function batchRefundTotal(b){ return (b.refunds||[]).reduce((a,r)=>a+num(r.amount),0); }
 function normalizePrev(e){
     return {
         id: e.id || ('p'+Math.random().toString(36).slice(2)),
@@ -756,7 +776,7 @@ window.addBatch = () => {
     const n = state.batches.length;
     const guessNum = Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1;
     const id = 'b' + Date.now();
-    state.batches.push({ id, name:`Batch ${guessNum}`, students:[], previous:[], share:{} });
+    state.batches.push({ id, name:`Batch ${guessNum}`, students:[], previous:[], refunds:[], share:{} });
     activeBatchId = id; save(); render();
 };
 window.renameBatch = (id) => {
@@ -889,13 +909,14 @@ function render(){
     else if (activeTab === 'installments') c.innerHTML = viewInstallments();
     else if (activeTab === 'breakdown')c.innerHTML = viewBreakdown();
     else if (activeTab === 'previous')  c.innerHTML = viewPrevious();
+    else if (activeTab === 'refunds')   c.innerHTML = viewRefunds();
     else if (activeTab === 'summary')  c.innerHTML = viewSummary();
     else if (activeTab === 'share')  { c.innerHTML = viewShare(); wireShare(); }
 }
 
 function renderBatchBar(){
     const bar = document.getElementById('batch-bar');
-    const batchScoped = ['students','breakdown','previous','share'].includes(activeTab);
+    const batchScoped = ['students','breakdown','previous','refunds','share'].includes(activeTab);
     if (!batchScoped) { bar.innerHTML = ''; bar.classList.add('hidden-view'); return; }
     bar.classList.remove('hidden-view');
     bar.innerHTML = state.batches.map(b => `
@@ -909,9 +930,10 @@ function renderBatchBar(){
 /* ---------- KPI strip (global totals) ---------- */
 function globalTotals(){
     let received=0, pending=0, refunded=0, students=0;
-    state.batches.forEach(b => b.students.forEach(s => {
-        received += num(s.feePaid); pending += num(s.feePending); refunded += num(s.refunded); students++;
-    }));
+    state.batches.forEach(b => {
+        b.students.forEach(s => { received += num(s.feePaid); pending += num(s.feePending); students++; });
+        refunded += batchRefundTotal(b);
+    });
     return { received, pending, refunded, students };
 }
 function renderKpis(){
@@ -1001,7 +1023,7 @@ window.deleteStudent = (id) => {
 window.openStudentModal = (id) => {
     const b = activeBatch();
     const editing = id ? b.students.find(x=>x.id===id) : null;
-    const s = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], feePaid:'', feePending:'', refunded:'', name:'', contact:'', date:'' };
+    const s = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], feePaid:'', feePending:'', name:'', contact:'', date:'' };
     const courseChecks = COURSES.map(c => `
         <label class="flex items-center gap-2 px-3 py-2 rounded-lg glass cursor-pointer text-sm">
             <input type="checkbox" class="course-chk accent-violet-500" value="${c.id}" ${s.courses.includes(c.id)?'checked':''}>
@@ -1036,10 +1058,9 @@ window.openStudentModal = (id) => {
                 <label class="text-xs font-semibold text-slate-400">Course selection <span id="m-course-hint" class="text-slate-500"></span></label>
                 <div id="m-courses" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">${courseChecks}</div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div><label class="text-xs font-semibold text-emerald-400">Fee Paid</label><input id="m-paid" type="number" class="field mt-1" value="${s.feePaid}" placeholder="0"></div>
                 <div><label class="text-xs font-semibold text-rose-400">Fee Pending</label><input id="m-pending" type="number" class="field mt-1" value="${s.feePending}" placeholder="0"></div>
-                <div><label class="text-xs font-semibold text-amber-400">Refunded</label><input id="m-refund" type="number" class="field mt-1" value="${s.refunded}" placeholder="0"></div>
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="closeModal()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Cancel</button>
@@ -1093,7 +1114,6 @@ window.saveStudent = (id) => {
         date: document.getElementById('m-date').value.trim(),
         feePaid: num(document.getElementById('m-paid').value),
         feePending: num(document.getElementById('m-pending').value),
-        refunded: num(document.getElementById('m-refund').value),
     };
     if (!data.name) return alert("Please enter a name.");
     if (id) {
@@ -1352,6 +1372,118 @@ window.savePrevEntry = (id) => {
 };
 
 /* ====================================================================
+   TAB: FEE REFUND (per batch — student + course details)
+   ==================================================================== */
+function viewRefunds(){
+    const b = activeBatch();
+    const list = b.refunds || [];
+    const total = batchRefundTotal(b);
+    const rows = list.map((r,i) => `
+        <tr>
+            <td class="text-slate-500 num">${i+1}</td>
+            <td class="font-semibold text-white">${esc(r.name)||'<span class=\'text-slate-600\'>—</span>'}</td>
+            <td class="text-slate-300 num">${esc(r.contact)||'—'}</td>
+            <td><span class="badge" style="background:${BUNDLE[r.bundleType]?.accent}22;color:${BUNDLE[r.bundleType]?.accent}">${BUNDLE[r.bundleType]?.name||'—'}</span></td>
+            <td class="text-slate-200">${esc(programLabel(r))}</td>
+            <td class="text-slate-400">${esc(r.date)||'—'}</td>
+            <td class="text-slate-400">${esc(r.reason)||'—'}</td>
+            <td class="text-right num text-amber-400 font-semibold">${money(r.amount)}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openRefundModal('${r.id}')" class="edit-only text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
+                <button onclick="deleteRefund('${r.id}')" class="edit-only text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
+            </td>
+        </tr>`).join('');
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Fee Refunds</h2>
+                <p class="text-slate-400 text-sm">${list.length} refund${list.length!==1?'s':''} · <span class="text-amber-400 font-semibold">${money(total)}</span> returned</p>
+            </div>
+            <button onclick="openRefundModal()" class="edit-only btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Refund</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>#</th><th>Student</th><th>Contact</th><th>Bundle</th><th>Program</th><th>Date</th><th>Reason</th><th class="text-right">Amount</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="9" class="text-center text-slate-500 py-10">No refunds recorded. Click <b class="text-violet-300">+ Add Refund</b>.</td></tr>`}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+window.deleteRefund = (id) => {
+    const b = activeBatch();
+    if (!confirm("Delete this refund record?")) return;
+    b.refunds = (b.refunds||[]).filter(r=>r.id!==id); save(); render();
+};
+window.openRefundModal = (id) => {
+    const b = activeBatch();
+    const editing = id ? (b.refunds||[]).find(r=>r.id===id) : null;
+    const r = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], name:'', contact:'', amount:'', date:'', reason:'' };
+    const courseChecks = COURSES.map(c => `
+        <label class="flex items-center gap-2 px-3 py-2 rounded-lg glass cursor-pointer text-sm">
+            <input type="checkbox" class="course-chk accent-violet-500" value="${c.id}" ${r.courses.includes(c.id)?'checked':''}>
+            <span class="text-slate-200">${c.name}</span>
+        </label>`).join('');
+    document.getElementById('modal-root').innerHTML = `
+    <div class="fixed inset-0 z-[60] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(2,4,10,0.7)" onclick="if(event.target===this)closeModal()">
+        <div class="glass rounded-3xl p-6 md:p-8 w-full max-w-2xl my-6 fade-in" style="background:#0b0e17">
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-bold text-white">${editing?'Edit':'Add'} Refund · <span class="text-violet-300">${esc(b.name)}</span></h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="text-xs font-semibold text-slate-400">Student name</label><input id="m-name" class="field mt-1" value="${esc(r.name)}" placeholder="Student name"></div>
+                <div><label class="text-xs font-semibold text-slate-400">Contact</label><input id="m-contact" class="field mt-1" value="${esc(r.contact)}" placeholder="03xx xxxxxxx"></div>
+                <div><label class="text-xs font-semibold text-slate-400">Bundle Type</label>
+                    <div class="cdd mt-1" data-cdd>
+                        <input type="hidden" id="m-bundle" value="${r.bundleType}">
+                        <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
+                            <span id="m-bundle-label" class="cdd-val">${bundleLabel(r.bundleType)}</span>
+                            <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                        <ul class="cdd-menu">
+                            ${BUNDLES.map(x=>`<li class="cdd-opt ${r.bundleType===x.id?'active':''}" onclick="cddSelect('${x.id}')">${bundleLabel(x.id)}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                <div><label class="text-xs font-semibold text-slate-400">Refund date</label><input id="m-date" class="field mt-1" value="${esc(r.date)}" placeholder="e.g. 28 June"></div>
+            </div>
+            <div class="mt-4">
+                <label class="text-xs font-semibold text-slate-400">Course selection <span id="m-course-hint" class="text-slate-500"></span></label>
+                <div id="m-courses" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">${courseChecks}</div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div><label class="text-xs font-semibold text-amber-400">Refund Amount</label><input id="m-amount" type="number" class="field mt-1" value="${r.amount}" placeholder="0"></div>
+                <div><label class="text-xs font-semibold text-slate-400">Reason (optional)</label><input id="m-reason" class="field mt-1" value="${esc(r.reason)}" placeholder="e.g. Withdrew"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Cancel</button>
+                <button onclick="saveRefund('${editing?editing.id:''}')" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add refund'}</button>
+            </div>
+        </div>
+    </div>`;
+    modalBundleChange();
+};
+window.saveRefund = (id) => {
+    const b = activeBatch();
+    const courses = [...document.querySelectorAll('.course-chk')].filter(c=>c.checked).map(c=>c.value);
+    const data = {
+        name: document.getElementById('m-name').value.trim(),
+        contact: document.getElementById('m-contact').value.trim(),
+        bundleType: document.getElementById('m-bundle').value,
+        courses,
+        date: document.getElementById('m-date').value.trim(),
+        amount: num(document.getElementById('m-amount').value),
+        reason: document.getElementById('m-reason').value.trim(),
+    };
+    if (!data.name) return alert("Please enter the student's name.");
+    b.refunds = b.refunds || [];
+    if (id) { const r = b.refunds.find(x=>x.id===id); Object.assign(r, data); }
+    else { b.refunds.push(normalizeRefund(data)); }
+    save(); closeModal(); render();
+};
+
+/* ====================================================================
    TAB: SUMMARY (all batches + by program)
    ==================================================================== */
 function viewSummary(){
@@ -1360,7 +1492,7 @@ function viewSummary(){
     const batchRows = state.batches.map(b => {
         const rec=b.students.reduce((a,s)=>a+num(s.feePaid),0);
         const pen=b.students.reduce((a,s)=>a+num(s.feePending),0);
-        const ref=b.students.reduce((a,s)=>a+num(s.refunded),0);
+        const ref=batchRefundTotal(b);
         const prev=batchPrevReceived(b);
         gRec+=rec; gPen+=pen; gRef+=ref; gPrev+=prev;
         return `<tr>
