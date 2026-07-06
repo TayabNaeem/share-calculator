@@ -1598,28 +1598,33 @@ function sumRow(label, val, color, big){
    TAB: PROFIT SHARE  (original logic, dark themed)
    Owner 40% · Future 36% · remaining 24% split among team (lead gets 12%)
    ==================================================================== */
-function batchReceivedPerCourse(batch){
-    // Each student's received fee (feePaid) is split evenly across the courses
-    // in their bundle, so per-course totals always sum to the batch's real received.
+function addSplit(per, courses, amount, sign){
+    // Split an amount evenly across the given courses (a bundle of 2/3 → each course
+    // gets an equal share), added (sign +1) or subtracted (sign -1) from the per-course pool.
+    const n = (courses && courses.length) ? courses.length : 0;
+    if (!n || !num(amount)) return;
+    const part = (num(amount) / n) * (sign || 1);
+    courses.forEach(cid => { if (per[cid] !== undefined) per[cid] += part; });
+}
+function batchSharePerCourse(batch){
+    // Distributable revenue per course = current received + previous-batch received − refunds,
+    // each split evenly across the courses of its bundle.
     const per = {}; COURSES.forEach(c => per[c.id] = 0);
-    batch.students.forEach(s => {
-        const n = (s.courses && s.courses.length) ? s.courses.length : 0;
-        if (!n) return;
-        const part = num(s.feePaid) / n;
-        s.courses.forEach(cid => { if (per[cid] !== undefined) per[cid] += part; });
-    });
+    (batch.students||[]).forEach(s => addSplit(per, s.courses, s.feePaid, +1));
+    (batch.previous||[]).forEach(e => addSplit(per, e.courses, e.received, +1));
+    (batch.refunds||[]).forEach(r => addSplit(per, r.courses, r.amount, -1));
     return per;
 }
 function viewShare(){
     const b = activeBatch();
-    const per = batchReceivedPerCourse(b);
-    const totalRec = Object.values(per).reduce((a,v)=>a+v,0);
+    const d = shareBreakdown(b);
+    const per = d.per;
     const inputs = COURSES.map(c => `
         <div>
             <label class="block text-xs font-semibold text-slate-400 mb-1">${c.name}${SHARE_LEAD[c.id]?` · <span class="text-violet-300">${SHARE_LEAD[c.id]}</span>`:''}</label>
             <div class="field readonly-field">
                 <span class="text-slate-500 text-xs font-semibold">Rs</span>
-                <span class="num font-bold ${per[c.id]>0?'text-white':'text-slate-600'}">${Math.round(per[c.id]).toLocaleString()}</span>
+                <span class="num font-bold ${per[c.id]>0?'text-white':(per[c.id]<0?'text-amber-400':'text-slate-600')}">${Math.round(per[c.id]).toLocaleString()}</span>
             </div>
         </div>`).join('');
     const teamRows = TEAM.map(name => `
@@ -1637,16 +1642,22 @@ function viewShare(){
             </div>
             <div class="flex items-center gap-4">
                 <div class="text-right">
-                    <p class="text-xs text-slate-500">Batch received</p>
-                    <p class="text-lg font-extrabold text-emerald-400 num">${money(totalRec)}</p>
+                    <p class="text-xs text-slate-500">Net distributable</p>
+                    <p class="text-lg font-extrabold text-emerald-400 num">${money(d.total)}</p>
                 </div>
                 <button onclick="downloadShareReport()" class="edit-only btn-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap">⬇ Download report</button>
             </div>
         </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+            ${miniStat('Current received', money(d.currentReceived), '#34d399')}
+            ${miniStat('+ Previous batch', money(d.prevReceived), '#a78bfa')}
+            ${miniStat('− Refunds', money(d.refunds), '#fb7185')}
+            ${miniStat('= Net distributable', money(d.total), '#22d3ee')}
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Revenue by Service</h3>
-                <p class="text-xs text-slate-500 mb-4">Auto-calculated from this batch's received fees. Bundle fees are split evenly across their courses.</p>
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Revenue by Service (net)</h3>
+                <p class="text-xs text-slate-500 mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
             </div>
             <div class="rounded-2xl p-6 text-white" style="background:linear-gradient(160deg,#0b0e1a,#131a2e);border:1px solid var(--stroke)">
@@ -1667,7 +1678,7 @@ function viewShare(){
 function cssId(name){ return name.replace(/\s+/g,'_'); }
 function wireShare(){ computeShare(); }
 function shareBreakdown(b){
-    const per = batchReceivedPerCourse(b);
+    const per = batchSharePerCourse(b);
     let owner=0, future=0, total=0;
     const team = {}; TEAM.forEach(n=>team[n]=0);
     COURSES.forEach(c => {
@@ -1683,7 +1694,10 @@ function shareBreakdown(b){
             TEAM.forEach(n => team[n]+=split);
         }
     });
-    return { per, owner, future, total, team };
+    const currentReceived = (b.students||[]).reduce((a,s)=>a+num(s.feePaid),0);
+    const prevReceived = batchPrevReceived(b);
+    const refunds = batchRefundTotal(b);
+    return { per, owner, future, total, team, currentReceived, prevReceived, refunds };
 }
 function computeShare(){
     const d = shareBreakdown(activeBatch());
@@ -1701,7 +1715,7 @@ window.downloadShareReport = () => {
     const now = new Date();
     const dateStr = now.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
     const teamPool = TEAM.reduce((a,n)=>a+d.team[n],0);
-    const revRows = COURSES.filter(c=>num(d.per[c.id])>0)
+    const revRows = COURSES.filter(c=>num(d.per[c.id])!==0)
         .map(c=>`<tr><td>${esc(c.name)}${SHARE_LEAD[c.id]?` <span class="lead">(lead: ${esc(SHARE_LEAD[c.id])})</span>`:''}</td><td class="r">${money(d.per[c.id])}</td></tr>`).join('')
         || `<tr><td colspan="2" class="muted">No revenue recorded for this batch.</td></tr>`;
     const teamRows = TEAM.map(n=>`<tr><td>${esc(n)}${SHARE_LEAD_BY_NAME(n)?` <span class="lead">(lead)</span>`:''}</td><td class="r">${money(d.team[n])}</td></tr>`).join('');
@@ -1724,13 +1738,19 @@ window.downloadShareReport = () => {
 <div class="head"><div class="brand">Skillmentor<span>.pk</span></div>
  <div style="text-align:right"><div style="font-weight:700">Profit Share Report</div><div class="muted">${esc(b.name)} · ${dateStr}</div></div></div>
 <div class="cards">
- <div class="card"><div class="lbl">Total Received</div><div class="val">${money(d.total)}</div></div>
+ <div class="card"><div class="lbl">Net Distributable</div><div class="val">${money(d.total)}</div></div>
  <div class="card"><div class="lbl">Owner · 40%</div><div class="val">${money(d.owner)}</div></div>
  <div class="card"><div class="lbl">Future Fund · 36%</div><div class="val">${money(d.future)}</div></div>
 </div>
-<h2>Revenue by Service</h2>
-<table><thead><tr><th>Service</th><th class="r">Received</th></tr></thead><tbody>${revRows}
- <tr class="total"><td>Total received</td><td class="r">${money(d.total)}</td></tr></tbody></table>
+<h2>Net Calculation</h2>
+<table><tbody>
+ <tr><td>Current received</td><td class="r">${money(d.currentReceived)}</td></tr>
+ <tr><td>+ Previous batch received</td><td class="r">${money(d.prevReceived)}</td></tr>
+ <tr><td>− Refunds</td><td class="r">− ${money(d.refunds)}</td></tr>
+ <tr class="total"><td>Net distributable</td><td class="r">${money(d.total)}</td></tr></tbody></table>
+<h2>Revenue by Service (net)</h2>
+<table><thead><tr><th>Service</th><th class="r">Net revenue</th></tr></thead><tbody>${revRows}
+ <tr class="total"><td>Total (net)</td><td class="r">${money(d.total)}</td></tr></tbody></table>
 <h2>Distribution</h2>
 <table><tbody>
  <tr><td>Owner (40%)</td><td class="r">${money(d.owner)}</td></tr>
