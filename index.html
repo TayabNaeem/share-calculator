@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TECH CLUB — Revenue & Profit Dashboard</title>
+    <title>Skillmentor.pk — Revenue & Profit Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script>
@@ -103,6 +103,8 @@
         .tbl tbody tr:hover { background: rgba(255,255,255,0.025); }
 
         .hidden-view { display: none !important; }
+        /* Viewers (read-only role) can't see any mutating controls */
+        body.role-viewer .edit-only { display: none !important; }
         ::-webkit-scrollbar { height: 8px; width: 8px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
         .fade-in { animation: fade .35s ease; }
@@ -123,7 +125,7 @@
 <!-- ================= AUTH ================= -->
 <div id="auth-container" class="relative z-10 max-w-md mx-auto mt-16 px-4">
     <div class="text-center mb-6">
-        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs font-semibold text-violet-300 mb-4">● TECH CLUB</div>
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs font-semibold text-violet-300 mb-4">● Skillmentor.pk</div>
         <h1 class="text-3xl font-extrabold text-white tracking-tight">Revenue Dashboard</h1>
         <p class="text-slate-400 mt-1">Sign in to manage batches, fees & profit shares.</p>
     </div>
@@ -137,14 +139,6 @@
                 <span id="toggle-text">Don't have an account?</span>
                 <button onclick="toggleAuthMode()" class="text-violet-400 font-bold ml-1" id="toggle-btn">Sign Up</button>
             </p>
-            <div class="relative flex items-center justify-center my-1">
-                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
-                <span class="px-3 text-slate-500 text-xs font-medium" style="background:var(--bg)">or</span>
-            </div>
-            <button onclick="handleGoogleAuth()" class="w-full border border-white/10 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-white/5 transition text-slate-200">
-                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53L2.18 16.93C3.99 20.53 7.7 23 12 23z"/></svg>
-                Continue with Google
-            </button>
             <p id="error-msg" class="text-rose-400 text-sm text-center font-medium min-h-[1rem]"></p>
         </div>
     </div>
@@ -155,17 +149,41 @@
     <!-- Header -->
     <header class="flex flex-wrap justify-between items-center gap-4 mb-6">
         <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-lg" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">TC</div>
+            <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-sm" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">SM</div>
             <div>
-                <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">Revenue & Profit Dashboard</h1>
-                <p id="user-line" class="text-slate-400 text-sm">—</p>
+                <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">Skillmentor.pk</h1>
+                <p class="text-slate-400 text-sm">Revenue &amp; Profit Dashboard</p>
             </div>
         </div>
         <div class="flex items-center gap-3">
             <span id="sync-pill" class="badge glass text-slate-300">● synced</span>
-            <button onclick="signOutUser()" class="text-slate-400 hover:text-rose-400 font-semibold text-sm transition">Sign out</button>
+            <div class="relative">
+                <button onclick="toggleProfileMenu(event)" id="profile-avatar" title="Account"
+                    class="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm border border-white/15 hover:border-violet-400 transition" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">?</button>
+                <div id="profile-menu" class="hidden-view absolute right-0 mt-2 w-64 rounded-2xl p-2 z-[80] border border-white/10" style="background:#0b0e17;box-shadow:0 24px 50px -14px rgba(0,0,0,0.8)">
+                    <div class="px-3 py-3 border-b border-white/10 mb-1">
+                        <p id="pm-name" class="text-white font-bold text-sm truncate">—</p>
+                        <p id="pm-email" class="text-slate-400 text-xs truncate">—</p>
+                        <span id="pm-role" class="badge mt-2 inline-block" style="background:#7c3aed22;color:#a78bfa">—</span>
+                    </div>
+                    <button onclick="openEditName()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">✎ Edit name</button>
+                    <button onclick="openChangePassword()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">🔑 Change password</button>
+                    <button id="pm-manage" onclick="openManageUsers()" class="hidden-view w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">👥 Manage users</button>
+                    <button onclick="signOutUser()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-rose-400 hover:bg-rose-500/10 transition">⎋ Sign out</button>
+                </div>
+            </div>
         </div>
     </header>
+
+    <!-- No-access screen (signed in, but no role assigned) -->
+    <div id="noaccess" class="hidden-view glass rounded-3xl p-10 text-center max-w-lg mx-auto mt-10">
+        <div class="text-4xl mb-3">🔒</div>
+        <h2 class="text-xl font-bold text-white mb-2">No access yet</h2>
+        <p class="text-slate-400 text-sm mb-5">Your account isn't authorised for this dashboard. Ask the owner to grant you <b class="text-violet-300">admin</b> or <b class="text-violet-300">viewer</b> access, then refresh.</p>
+        <button onclick="signOutUser()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Sign out</button>
+    </div>
+
+    <div id="app-main">
 
     <!-- KPI strip -->
     <div id="kpi-strip" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
@@ -185,6 +203,7 @@
 
     <!-- Tab content -->
     <div id="tab-content" class="fade-in"></div>
+    </div><!-- /app-main -->
 </div>
 
 <!-- ================= MODAL ROOT ================= -->
@@ -193,10 +212,14 @@
 <!-- ================= FIREBASE + APP LOGIC ================= -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut,
+         updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot }
+import { getFirestore, doc, setDoc, getDoc, onSnapshot }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/* ===== OWNER: this email always has full control and manages all users. ===== */
+const OWNER_EMAIL = "tayyabnaem26102001@gmail.com";
 
 /* =====================================================================
    SETUP — PASTE YOUR FIREBASE CONFIG HERE
@@ -221,12 +244,11 @@ const firebaseConfig = (typeof __firebase_config !== 'undefined')
 const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
 if (!isConfigured) document.getElementById('config-banner').classList.remove('hidden-view');
 
-let auth, db, provider;
+let auth, db;
 try {
     const app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
-    provider = new GoogleAuthProvider();
 } catch (e) { console.warn("Firebase init skipped:", e.message); }
 
 let isSignUp = false;
@@ -246,62 +268,235 @@ window.handleAuth = async () => {
         error.innerText = '';
     } catch (e) { error.innerText = friendlyErr(e); }
 };
-window.handleGoogleAuth = async () => {
-    const error = el('error-msg');
-    if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
-    try { await signInWithPopup(auth, provider); }
-    catch (e) { error.innerText = friendlyErr(e); }
-};
 window.signOutUser = () => signOut(auth);
 function friendlyErr(e){ return (e.code||'').replace('auth/','').replace(/-/g,' ') || e.message; }
+function escHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escJs(s){ return String(s||'').replace(/'/g, "\\'"); }
 
-/* ---------- Persistence ---------- */
-let userRef = null, saveTimer = null, unsub = null;
-function bootUser(user){
-    userRef = doc(db, "dashboards", user.uid);
+/* ============ Roles & access ============ */
+window.__owner = OWNER_EMAIL;
+let currentUser = null, currentRole = 'none', membersData = { admins: [], viewers: [] };
+const isOwnerEmail = (e) => !!e && e.toLowerCase() === OWNER_EMAIL.toLowerCase();
+function computeRole(email){
+    if (!email) return 'none';
+    const e = email.toLowerCase();
+    if (isOwnerEmail(e)) return 'owner';
+    if ((membersData.admins||[]).some(x => x.toLowerCase() === e)) return 'admin';
+    if ((membersData.viewers||[]).some(x => x.toLowerCase() === e)) return 'viewer';
+    return 'none';
+}
+function canEdit(){ return currentRole === 'owner' || currentRole === 'admin'; }
+window.__getRole = () => currentRole;
+
+/* ============ Persistence (shared dataset) ============ */
+let dataRef = null, membersRef = null, saveTimer = null, unsub = null, unsubM = null, migrated = false;
+
+async function bootUser(user){
+    currentUser = user;
+    dataRef = doc(db, "app", "data");
+    membersRef = doc(db, "app", "members");
+    subscribeMembers();
+    if (isOwnerEmail(user.email)) { try { await migrateIfNeeded(); } catch(e){ console.warn(e); } }
+    subscribeData();
+    updateProfileUI();
+}
+function subscribeMembers(){
+    if (unsubM) unsubM();
+    unsubM = onSnapshot(membersRef, (snap) => {
+        membersData = snap.exists() ? { admins: snap.data().admins||[], viewers: snap.data().viewers||[] } : { admins:[], viewers:[] };
+        applyRole();
+        if (document.getElementById('mu-list')) renderManageUsers();
+    }, () => { membersData = { admins:[], viewers:[] }; applyRole(); });
+}
+function subscribeData(){
     if (unsub) unsub();
-    unsub = onSnapshot(userRef, (snap) => {
+    unsub = onSnapshot(dataRef, (snap) => {
         setSync(true);
-        if (snap.metadata.hasPendingWrites) return;     // ignore local echoes
-        if (snap.exists() && snap.data().state) {
-            window.__loadState(snap.data().state);
-        } else {
-            window.__loadState(null);                   // first run → seed defaults
-            queueSave();
-        }
+        if (snap.metadata.hasPendingWrites) return;
+        if (snap.exists() && snap.data().state) window.__loadState(snap.data().state);
+        else { window.__loadState(null); if (canEdit()) window.__queueSave(); }
     }, (err) => {
         console.error("Firestore read failed:", err);
         setSync(false, "offline · check Firestore");
-        // Still render the app locally so it's usable even if the cloud is unreachable.
         if (!window.__getState()) window.__loadState(null);
     });
 }
+async function migrateIfNeeded(){
+    const snap = await getDoc(dataRef);
+    if (snap.exists() && snap.data().state) return;               // shared data already there
+    const old = await getDoc(doc(db, "dashboards", currentUser.uid));
+    if (old.exists() && old.data().state) await setDoc(dataRef, { state: old.data().state });
+}
+function applyRole(){
+    currentRole = computeRole(currentUser && currentUser.email);
+    updateProfileUI();
+    document.body.classList.toggle('role-viewer', currentRole === 'viewer');
+    const none = currentRole === 'none';
+    el('noaccess').classList.toggle('hidden-view', !none);
+    el('app-main').classList.toggle('hidden-view', none);
+    el('sync-pill').classList.toggle('hidden-view', none);
+    el('pm-manage').classList.toggle('hidden-view', currentRole !== 'owner');
+}
 window.__queueSave = () => {
-    if (!userRef) return;
+    if (!dataRef || !canEdit()) return;
     setSync(false, "saving…");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-        try { await setDoc(userRef, { state: window.__getState() }); setSync(true); }
+        try { await setDoc(dataRef, { state: window.__getState() }); setSync(true); }
         catch(e){ setSync(false, "save failed"); console.error(e); }
     }, 500);
 };
-function queueSave(){ window.__queueSave(); }
 function setSync(ok, label){
     const p = el('sync-pill'); if(!p) return;
     p.innerHTML = ok ? "● synced" : ("● " + (label||"offline"));
     p.style.color = ok ? "#34d399" : "#fbbf24";
 }
 
+/* ============ Profile menu ============ */
+window.toggleProfileMenu = (e) => { if (e) e.stopPropagation(); el('profile-menu').classList.toggle('hidden-view'); };
+document.addEventListener('click', (e) => {
+    const m = el('profile-menu');
+    if (m && !m.classList.contains('hidden-view') && !e.target.closest('#profile-menu') && !e.target.closest('#profile-avatar'))
+        m.classList.add('hidden-view');
+});
+function initials(n){ return (String(n||'?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('') || '?').toUpperCase(); }
+function updateProfileUI(){
+    const u = currentUser; if (!u) return;
+    const name = u.displayName || (u.email ? u.email.split('@')[0] : 'User');
+    el('pm-name').innerText = name;
+    el('pm-email').innerText = u.email || '';
+    el('pm-role').innerText = { owner:'Owner', admin:'Admin', viewer:'Viewer', none:'No access' }[currentRole] || '';
+    el('profile-avatar').innerText = initials(name);
+}
+function modalShell(title, body, footer, wide){
+    document.getElementById('modal-root').innerHTML = `
+    <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(2,4,10,0.7)" onclick="if(event.target===this)closeModal()">
+        <div class="rounded-3xl p-6 md:p-8 w-full ${wide?'max-w-lg':'max-w-md'} my-6 fade-in border border-white/10" style="background:#0b0e17">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">${title}</h3><button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl">✕</button></div>
+            ${body}
+            <div class="flex justify-end gap-2 mt-6"><button onclick="closeModal()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Cancel</button>${footer||''}</div>
+        </div>
+    </div>`;
+}
+window.openEditName = () => {
+    el('profile-menu').classList.add('hidden-view');
+    modalShell('Edit name', `
+        <div><label class="text-xs font-semibold text-slate-400">Display name</label>
+        <input id="pf-name" class="field mt-1" value="${escHtml(currentUser?.displayName||'')}" placeholder="Your name"></div>
+        <p id="pf-err" class="text-rose-400 text-sm mt-2"></p>`,
+        `<button onclick="doEditName()" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">Save</button>`);
+};
+window.doEditName = async () => {
+    const name = el('pf-name').value.trim();
+    try { await updateProfile(currentUser, { displayName: name }); updateProfileUI(); window.closeModal(); }
+    catch(e){ el('pf-err').innerText = friendlyErr(e); }
+};
+window.openChangePassword = () => {
+    el('profile-menu').classList.add('hidden-view');
+    modalShell('Change password', `
+        <div class="space-y-3">
+            <div><label class="text-xs font-semibold text-slate-400">Current password</label><input id="pf-cur" type="password" class="field mt-1"></div>
+            <div><label class="text-xs font-semibold text-slate-400">New password</label><input id="pf-new" type="password" class="field mt-1" placeholder="min 6 characters"></div>
+            <div><label class="text-xs font-semibold text-slate-400">Confirm new password</label><input id="pf-new2" type="password" class="field mt-1"></div>
+        </div>
+        <p id="pf-err" class="text-rose-400 text-sm mt-2"></p>`,
+        `<button onclick="doChangePassword()" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">Update password</button>`);
+};
+window.doChangePassword = async () => {
+    const cur = el('pf-cur').value, nw = el('pf-new').value, nw2 = el('pf-new2').value, err = el('pf-err');
+    if (nw.length < 6) { err.innerText = "New password must be at least 6 characters."; return; }
+    if (nw !== nw2) { err.innerText = "New passwords don't match."; return; }
+    try {
+        await reauthenticateWithCredential(currentUser, EmailAuthProvider.credential(currentUser.email, cur));
+        await updatePassword(currentUser, nw);
+        window.closeModal();
+        alert("Password updated successfully.");
+    } catch(e){ err.innerText = friendlyErr(e); }
+};
+
+/* ============ Manage users (owner only) ============ */
+window.openManageUsers = () => {
+    el('profile-menu').classList.add('hidden-view');
+    if (currentRole !== 'owner') return;
+    renderManageUsers();
+};
+function renderManageUsers(){
+    const admins = membersData.admins||[], viewers = membersData.viewers||[];
+    const row = (email, role) => `
+        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl glass">
+            <div class="min-w-0"><p class="text-sm text-white truncate">${escHtml(email)}</p>
+                <span class="badge" style="background:${role==='admin'?'#7c3aed22':'#22d3ee22'};color:${role==='admin'?'#a78bfa':'#22d3ee'}">${role}</span></div>
+            <div class="flex items-center gap-1 shrink-0">
+                <button onclick="setMemberRole('${escJs(email)}','${role==='admin'?'viewer':'admin'}')" class="text-xs text-slate-300 glass px-2 py-1 rounded-lg hover:text-white">Make ${role==='admin'?'viewer':'admin'}</button>
+                <button onclick="removeMember('${escJs(email)}')" class="text-slate-400 hover:text-rose-400 px-2" title="Remove">🗑</button>
+            </div>
+        </div>`;
+    const list = [...admins.map(e=>row(e,'admin')), ...viewers.map(e=>row(e,'viewer'))].join('')
+        || `<p class="text-slate-500 text-sm text-center py-4">No team members yet. Add one above.</p>`;
+    modalShell('Manage users', `
+        <div class="mb-4 p-3 rounded-xl" style="background:#7c3aed14;border:1px solid #7c3aed33">
+            <p class="text-xs text-slate-400">Owner · full control</p><p class="text-sm text-white font-semibold truncate">${escHtml(OWNER_EMAIL)}</p>
+        </div>
+        <p class="text-xs text-slate-400 mb-2">Add a team member by email. <b class="text-violet-300">Admin</b> can manage payments; <b class="text-cyan-300">Viewer</b> can only view. They must sign up with that same email.</p>
+        <div class="flex gap-2 mb-4">
+            <input id="mu-email" class="field flex-1" placeholder="user@email.com">
+            <div class="cdd" data-cdd style="width:120px">
+                <input type="hidden" id="mu-role" value="viewer">
+                <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)"><span id="mu-role-label" class="cdd-val">Viewer</span><svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <ul class="cdd-menu"><li class="cdd-opt active" onclick="muRole('viewer')">Viewer</li><li class="cdd-opt" onclick="muRole('admin')">Admin</li></ul>
+            </div>
+            <button onclick="addMember()" class="btn-primary text-white px-4 rounded-xl font-bold">Add</button>
+        </div>
+        <div id="mu-list" class="space-y-2 max-h-64 overflow-y-auto">${list}</div>
+        <p id="mu-err" class="text-rose-400 text-sm mt-2"></p>`, '', true);
+}
+window.muRole = (r) => {
+    el('mu-role').value = r;
+    el('mu-role-label').innerText = r.charAt(0).toUpperCase() + r.slice(1);
+    const cdd = el('mu-role').closest('[data-cdd]');
+    cdd.classList.remove('open');
+    cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${r}'`)));
+};
+async function persistMembers(data, errEl){
+    try { await setDoc(membersRef, data); membersData = data; renderManageUsers(); }
+    catch(e){ const m = "Save failed: " + friendlyErr(e); if (errEl) errEl.innerText = m; else alert(m); console.error(e); }
+}
+window.addMember = async () => {
+    const email = (el('mu-email').value||'').trim().toLowerCase();
+    const role = el('mu-role').value, err = el('mu-err');
+    if (!email || !email.includes('@')) { err.innerText = "Enter a valid email."; return; }
+    if (isOwnerEmail(email)) { err.innerText = "That's the owner account (already full access)."; return; }
+    const admins = (membersData.admins||[]).filter(e => e.toLowerCase() !== email);
+    const viewers = (membersData.viewers||[]).filter(e => e.toLowerCase() !== email);
+    if (role === 'admin') admins.push(email); else viewers.push(email);
+    await persistMembers({ admins, viewers }, err);
+};
+window.removeMember = async (email) => {
+    const e = email.toLowerCase();
+    await persistMembers({
+        admins:  (membersData.admins||[]).filter(x => x.toLowerCase() !== e),
+        viewers: (membersData.viewers||[]).filter(x => x.toLowerCase() !== e),
+    });
+};
+window.setMemberRole = async (email, role) => {
+    const e = email.toLowerCase();
+    const admins = (membersData.admins||[]).filter(x => x.toLowerCase() !== e);
+    const viewers = (membersData.viewers||[]).filter(x => x.toLowerCase() !== e);
+    if (role === 'admin') admins.push(email); else viewers.push(email);
+    await persistMembers({ admins, viewers });
+};
+
 onAuthStateChanged(auth || {}, (user) => {
     if (user) {
         el('auth-container').classList.add('hidden-view');
         el('config-banner').classList.add('hidden-view');
         el('app-container').classList.remove('hidden-view');
-        el('user-line').innerText = user.email || "Signed in";
         bootUser(user);
     } else {
         el('app-container').classList.add('hidden-view');
         el('auth-container').classList.remove('hidden-view');
+        document.body.classList.remove('role-viewer');
+        currentUser = null; currentRole = 'none';
         if (!isConfigured) el('config-banner').classList.remove('hidden-view');
     }
 });
@@ -466,7 +661,7 @@ function renderBatchBar(){
             class="px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${b.id===activeBatchId?'btn-primary text-white':'glass text-slate-300 hover:text-white'}">
             ${esc(b.name)}
         </button>`).join('')
-        + `<button onclick="addBatch()" class="px-3 py-2 rounded-xl text-sm font-bold text-violet-300 glass hover:text-white transition">+ Batch</button>`;
+        + `<button onclick="addBatch()" class="edit-only px-3 py-2 rounded-xl text-sm font-bold text-violet-300 glass hover:text-white transition">+ Batch</button>`;
 }
 
 /* ---------- KPI strip (global totals) ---------- */
@@ -519,8 +714,8 @@ function viewStudents(){
                 </div>
             </td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openStudentModal('${s.id}')" class="text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
-                <button onclick="deleteStudent('${s.id}')" class="text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
+                <button onclick="openStudentModal('${s.id}')" class="edit-only text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
+                <button onclick="deleteStudent('${s.id}')" class="edit-only text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
             </td>
         </tr>`;
     }).join('');
@@ -536,8 +731,8 @@ function viewStudents(){
                 <p class="text-slate-400 text-sm">${b.students.length} enrolled · <span class="text-emerald-400">${money(rec)}</span> received · <span class="text-rose-400">${money(pen)}</span> pending</p>
             </div>
             <div class="flex gap-2">
-                <button onclick="deleteBatch('${b.id}')" class="glass px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-rose-400">Delete batch</button>
-                <button onclick="openStudentModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Student</button>
+                <button onclick="deleteBatch('${b.id}')" class="edit-only glass px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:text-rose-400">Delete batch</button>
+                <button onclick="openStudentModal()" class="edit-only btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Student</button>
             </div>
         </div>
         <div class="overflow-x-auto">
@@ -694,7 +889,7 @@ function viewInstallments(){
                 </div>
             </td>
             <td class="text-right">
-                <button onclick="recordPayment('${b.id}','${s.id}')" class="btn-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg">Record payment</button>
+                <button onclick="recordPayment('${b.id}','${s.id}')" class="edit-only btn-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg">Record payment</button>
             </td>
         </tr>`;
     }).join('');
@@ -818,8 +1013,8 @@ function viewPrevious(){
             <td class="text-right num ${num(e.pending)>0?'text-rose-400':'text-slate-500'} font-semibold">${money(e.pending)}</td>
             <td class="text-right num text-white font-semibold">${money(num(e.received)+num(e.pending))}</td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openPrevModal('${e.id}')" class="text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
-                <button onclick="deletePrevEntry('${e.id}')" class="text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
+                <button onclick="openPrevModal('${e.id}')" class="edit-only text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
+                <button onclick="deletePrevEntry('${e.id}')" class="edit-only text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
             </td>
         </tr>`).join('');
 
@@ -830,7 +1025,7 @@ function viewPrevious(){
                 <h2 class="text-xl font-bold text-white">${esc(b.name)} — Previous Batch Payments</h2>
                 <p class="text-slate-400 text-sm">Payments carried in from earlier batches. Course-wise, no student details needed.</p>
             </div>
-            <button onclick="openPrevModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Payment</button>
+            <button onclick="openPrevModal()" class="edit-only btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Payment</button>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             ${miniStat('Previous received', money(rec), '#34d399')}

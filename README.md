@@ -16,18 +16,32 @@ A single-file, dark-theme dashboard for managing a training institute's batches,
 
 1. Create a free [Firebase](https://console.firebase.google.com) project.
 2. Enable **Authentication → Email/Password** (and Google).
-3. Create a **Firestore Database**, then publish these rules:
+3. Create a **Firestore Database**, then publish these rules (set the owner email to your own):
 
    ```
    rules_version = '2';
    service cloud.firestore {
      match /databases/{database}/documents {
-       match /dashboards/{uid} {
-         allow read, write: if request.auth != null && request.auth.uid == uid;
-       }
+       function owner()  { return request.auth != null && request.auth.token.email.lower() == 'tayyabnaem26102001@gmail.com'; }
+       function mem()    { return get(/databases/$(database)/documents/app/members).data; }
+       function hasMembers() { return exists(/databases/$(database)/documents/app/members); }
+       function isAdmin()  { return owner() || (request.auth != null && hasMembers() && request.auth.token.email.lower() in mem().admins); }
+       function isViewer() { return request.auth != null && hasMembers() && request.auth.token.email.lower() in mem().viewers; }
+
+       match /app/data    { allow read: if isAdmin() || isViewer(); allow write: if isAdmin(); }
+       match /app/members { allow read: if request.auth != null; allow write: if owner(); }
+       // legacy per-user docs, kept only for one-time migration of old data
+       match /dashboards/{uid} { allow read, write: if request.auth != null && request.auth.uid == uid; }
      }
    }
    ```
+
+### Roles
+- **Owner** (hard-coded email in `index.html` `OWNER_EMAIL` and in the rules): full control, manages users. Can never be locked out.
+- **Admin**: can manage all payments (add/edit/delete).
+- **Viewer**: read-only.
+
+The owner adds team members by email via the avatar menu → **Manage users**. Everyone shares one dataset stored at `app/data`.
 
 4. Paste your `firebaseConfig` into the `firebaseConfig` object near the bottom of `index.html` (see the `SETUP` comment).
 
