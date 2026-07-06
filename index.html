@@ -137,10 +137,19 @@
             <input id="email" type="email" placeholder="Email address" class="field">
             <input id="password" type="password" placeholder="Password" class="field">
             <button onclick="handleAuth()" id="auth-btn" class="btn-primary w-full text-white py-3 rounded-xl font-bold">Sign In</button>
-            <p class="text-center text-sm text-slate-400">
-                <span id="toggle-text">Don't have an account?</span>
-                <button onclick="toggleAuthMode()" class="text-violet-400 font-bold ml-1" id="toggle-btn">Sign Up</button>
-            </p>
+            <div class="flex items-center justify-between text-sm gap-2">
+                <p class="text-slate-400"><span id="toggle-text">Don't have an account?</span>
+                    <button onclick="toggleAuthMode()" class="text-violet-400 font-bold ml-1" id="toggle-btn">Sign Up</button></p>
+                <button id="forgot-link" onclick="handleForgotPassword()" class="text-slate-400 hover:text-violet-300 font-medium whitespace-nowrap">Forgot password?</button>
+            </div>
+            <div class="relative flex items-center justify-center my-1">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
+                <span class="px-3 text-slate-500 text-xs font-medium" style="background:var(--bg)">or</span>
+            </div>
+            <button onclick="handleGoogleAuth()" class="w-full border border-white/10 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-white/5 transition text-slate-200">
+                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53L2.18 16.93C3.99 20.53 7.7 23 12 23z"/></svg>
+                Continue with Google
+            </button>
             <p id="error-msg" class="text-rose-400 text-sm text-center font-medium min-h-[1rem]"></p>
         </div>
     </div>
@@ -181,7 +190,7 @@
     <div id="noaccess" class="hidden-view glass rounded-3xl p-10 text-center max-w-lg mx-auto mt-10">
         <div class="text-4xl mb-3">🔒</div>
         <h2 class="text-xl font-bold text-white mb-2">No access yet</h2>
-        <p class="text-slate-400 text-sm mb-5">Your account isn't authorised for this dashboard. Ask the owner to grant you <b class="text-violet-300">admin</b> or <b class="text-violet-300">viewer</b> access, then refresh.</p>
+        <p class="text-slate-400 text-sm mb-5">You're signed in, but access is <b class="text-amber-300">pending the owner's approval</b>. Your request has been sent — you'll be able to view the dashboard once the owner assigns you a role. Refresh after you're approved.</p>
         <button onclick="signOutUser()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Sign out</button>
     </div>
 
@@ -215,7 +224,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut,
-         updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential }
+         updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
+         signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, collection, setDoc, getDoc, deleteDoc, onSnapshot }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -246,11 +256,12 @@ const firebaseConfig = (typeof __firebase_config !== 'undefined')
 const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
 if (!isConfigured) document.getElementById('config-banner').classList.remove('hidden-view');
 
-let auth, db;
+let auth, db, provider;
 try {
     const app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    provider = new GoogleAuthProvider();
 } catch (e) { console.warn("Firebase init skipped:", e.message); }
 
 let isSignUp = false, suppressBoot = false;
@@ -260,6 +271,7 @@ function applyAuthMode(){
     el('toggle-text').innerText= isSignUp ? "Already have an account?" : "Don't have an account?";
     el('toggle-btn').innerText = isSignUp ? "Sign In" : "Sign Up";
     el('name').classList.toggle('hidden-view', !isSignUp);
+    el('forgot-link').classList.toggle('hidden-view', isSignUp);
 }
 window.toggleAuthMode = () => { isSignUp = !isSignUp; el('error-msg').innerText=''; applyAuthMode(); };
 window.handleAuth = async () => {
@@ -286,6 +298,22 @@ window.handleAuth = async () => {
         }
     } catch (e) { error.style.color=''; error.innerText = friendlyErr(e); }
     finally { suppressBoot = false; }
+};
+window.handleGoogleAuth = async () => {
+    const error = el('error-msg'); error.style.color = '';
+    if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
+    try { await signInWithPopup(auth, provider); error.innerText = ''; }
+    catch (e) { error.innerText = friendlyErr(e); }
+};
+window.handleForgotPassword = async () => {
+    const email = el('email').value.trim(), error = el('error-msg'); error.style.color = '';
+    if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
+    if (!email) { error.innerText = "Type your email in the box above, then click Forgot password."; return; }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        error.style.color = '#34d399';
+        error.innerText = `Password reset link sent to ${email}. Check your inbox (and spam).`;
+    } catch (e) { error.innerText = friendlyErr(e); }
 };
 window.signOutUser = () => signOut(auth);
 function friendlyErr(e){ return (e.code||'').replace('auth/','').replace(/-/g,' ') || e.message; }
@@ -357,6 +385,18 @@ async function migrateIfNeeded(){
     const old = await getDoc(doc(db, "dashboards", currentUser.uid));
     if (old.exists() && old.data().state) await setDoc(dataRef, { state: old.data().state });
 }
+let requestEnsured = false;
+async function ensureAccessRequest(){
+    if (requestEnsured || !currentUser) return;
+    requestEnsured = true;
+    try {
+        await setDoc(doc(db, "requests", currentUser.uid), {
+            email: (currentUser.email||'').toLowerCase(),
+            name: currentUser.displayName || '',
+            createdAt: Date.now()
+        }, { merge: true });
+    } catch(e){ console.warn("Could not create access request:", e); }
+}
 function applyRole(){
     currentRole = computeRole(currentUser && currentUser.email);
     updateProfileUI();
@@ -366,6 +406,8 @@ function applyRole(){
     el('app-main').classList.toggle('hidden-view', none);
     el('sync-pill').classList.toggle('hidden-view', none);
     el('pm-manage').classList.toggle('hidden-view', currentRole !== 'owner');
+    // Signed-in but no role (e.g. Google sign-up) → register a pending request for the owner
+    if (none && currentUser && !isOwnerEmail(currentUser.email)) ensureAccessRequest();
 }
 window.__queueSave = () => {
     if (!dataRef || !canEdit()) return;
@@ -458,7 +500,8 @@ function renderManageUsers(){
                 <span class="badge" style="background:${role==='admin'?'#7c3aed22':'#22d3ee22'};color:${role==='admin'?'#a78bfa':'#22d3ee'}">${role}</span></div>
             <div class="flex items-center gap-1 shrink-0">
                 <button onclick="setMemberRole('${escJs(email)}','${role==='admin'?'viewer':'admin'}')" class="text-xs text-slate-300 glass px-2 py-1 rounded-lg hover:text-white">Make ${role==='admin'?'viewer':'admin'}</button>
-                <button onclick="removeMember('${escJs(email)}')" class="text-slate-400 hover:text-rose-400 px-2" title="Remove">🗑</button>
+                <button onclick="resetMemberPassword('${escJs(email)}')" class="text-slate-400 hover:text-amber-300 px-1.5" title="Send password reset email">🔑</button>
+                <button onclick="removeMember('${escJs(email)}')" class="text-slate-400 hover:text-rose-400 px-1.5" title="Remove user">🗑</button>
             </div>
         </div>`;
     const list = [...admins.map(e=>row(e,'admin')), ...viewers.map(e=>row(e,'viewer'))].join('')
@@ -516,6 +559,11 @@ window.addMember = async () => {
     if (role === 'admin') admins.push(email); else viewers.push(email);
     await persistMembers({ admins, viewers }, err);
 };
+window.resetMemberPassword = async (email) => {
+    if (!confirm(`Send a password reset link to ${email}?`)) return;
+    try { await sendPasswordResetEmail(auth, email); alert(`Password reset link sent to ${email}.`); }
+    catch(e){ alert("Failed: " + friendlyErr(e)); }
+};
 window.removeMember = async (email) => {
     if (!confirm(`Remove ${email}? They will lose all access to the dashboard.`)) return;
     const e = email.toLowerCase();
@@ -558,7 +606,7 @@ onAuthStateChanged(auth || {}, (user) => {
         el('app-container').classList.add('hidden-view');
         el('auth-container').classList.remove('hidden-view');
         document.body.classList.remove('role-viewer');
-        currentUser = null; currentRole = 'none';
+        currentUser = null; currentRole = 'none'; requestEnsured = false;
         if (!isConfigured) el('config-banner').classList.remove('hidden-view');
     }
 });
