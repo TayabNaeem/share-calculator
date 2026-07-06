@@ -60,6 +60,26 @@
         }
         .field:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.18); }
         .field::placeholder { color: #64748b; }
+        select.field { -webkit-appearance: none; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.2rem; }
+        select.field option, select.field optgroup { background-color: #0b0e17; color: #f1f5f9; }
+        .field.readonly-field { display:flex; align-items:center; justify-content:space-between; }
+        /* Custom dark dropdown (native <select> popups ignore colors on Windows) */
+        .cdd { position: relative; }
+        .cdd-btn { width:100%; cursor:pointer; text-align:left; }
+        .cdd-btn .cdd-val { color:#f1f5f9; }
+        .cdd-chev { transition: transform .2s; color:#94a3b8; }
+        .cdd.open .cdd-chev { transform: rotate(180deg); }
+        .cdd-menu {
+            position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:70;
+            background:#0b0e17; border:1px solid var(--stroke); border-radius:0.85rem; padding:5px;
+            box-shadow:0 24px 50px -14px rgba(0,0,0,0.75); display:none;
+        }
+        .cdd.open .cdd-menu { display:block; }
+        .cdd-opt { padding:0.6rem 0.75rem; border-radius:0.6rem; cursor:pointer; color:#e2e8f0; font-size:0.95rem; }
+        .cdd-opt:hover { background:rgba(139,92,246,0.18); color:#fff; }
+        .cdd-opt.active { background:rgba(139,92,246,0.28); color:#fff; font-weight:600; }
 
         .btn-primary {
             background: linear-gradient(135deg, #7c3aed, #4f46e5);
@@ -155,6 +175,7 @@
         <button data-tab="students"   onclick="setTab('students')"   class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">👥 Students</button>
         <button data-tab="installments" onclick="setTab('installments')" class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">💳 Installments</button>
         <button data-tab="breakdown"  onclick="setTab('breakdown')"  class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">📦 Bundles & Courses</button>
+        <button data-tab="previous"   onclick="setTab('previous')"   class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">🔁 Previous Batch</button>
         <button data-tab="summary"    onclick="setTab('summary')"    class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">📊 Summary</button>
         <button data-tab="share"      onclick="setTab('share')"      class="tab-btn px-4 py-3 text-slate-400 font-semibold text-sm">🤝 Profit Share</button>
     </div>
@@ -248,7 +269,12 @@ function bootUser(user){
             window.__loadState(null);                   // first run → seed defaults
             queueSave();
         }
-    }, () => setSync(false));
+    }, (err) => {
+        console.error("Firestore read failed:", err);
+        setSync(false, "offline · check Firestore");
+        // Still render the app locally so it's usable even if the cloud is unreachable.
+        if (!window.__getState()) window.__loadState(null);
+    });
 }
 window.__queueSave = () => {
     if (!userRef) return;
@@ -315,8 +341,8 @@ function seedState(){
     const id = 'b' + Date.now();
     return {
         batches: [
-            { id:'b_batch2', name:'Batch 2', previousReceived:0, students:[], share:{} },
-            { id, name:'Batch 5', previousReceived:0, students:[], share:{} },
+            { id:'b_batch2', name:'Batch 2', students:[], previous:[], share:{} },
+            { id, name:'Batch 5', students:[], previous:[], share:{} },
         ],
         activeBatchId: id,
     };
@@ -328,13 +354,20 @@ window.__loadState = (incoming) => {
     else {
         state = incoming;
         // migrate / guard
-        state.batches = (state.batches||[]).map(b => ({
-            id: b.id || ('b'+Math.random().toString(36).slice(2)),
-            name: b.name || 'Batch',
-            previousReceived: num(b.previousReceived),
-            students: (b.students||[]).map(normalizeStudent),
-            share: b.share || {},
-        }));
+        state.batches = (state.batches||[]).map(b => {
+            let previous = Array.isArray(b.previous) ? b.previous.map(normalizePrev) : [];
+            // migrate legacy single "previousReceived" number into a carry-forward entry
+            if (!previous.length && num(b.previousReceived) > 0) {
+                previous = [ normalizePrev({ bundleType:'single', courses:[], received:num(b.previousReceived), pending:0 }) ];
+            }
+            return {
+                id: b.id || ('b'+Math.random().toString(36).slice(2)),
+                name: b.name || 'Batch',
+                students: (b.students||[]).map(normalizeStudent),
+                previous,
+                share: b.share || {},
+            };
+        });
         if (!state.batches.length) state = seedState();
     }
     activeBatchId = state.activeBatchId && state.batches.some(b=>b.id===state.activeBatchId)
@@ -352,6 +385,16 @@ function normalizeStudent(s){
         installments: Array.isArray(s.installments) ? s.installments : [],
     };
 }
+function normalizePrev(e){
+    return {
+        id: e.id || ('p'+Math.random().toString(36).slice(2)),
+        bundleType: e.bundleType || 'single',
+        courses: Array.isArray(e.courses) ? e.courses : [],
+        received: num(e.received), pending: num(e.pending),
+    };
+}
+function batchPrevReceived(b){ return (b.previous||[]).reduce((a,e)=>a+num(e.received),0); }
+function batchPrevPending(b){ return (b.previous||[]).reduce((a,e)=>a+num(e.pending),0); }
 function save(){ state.activeBatchId = activeBatchId; if (window.__queueSave) window.__queueSave(); }
 
 /* ---------- Helpers ---------- */
@@ -375,7 +418,7 @@ window.addBatch = () => {
     const n = state.batches.length;
     const guessNum = Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1;
     const id = 'b' + Date.now();
-    state.batches.push({ id, name:`Batch ${guessNum}`, previousReceived:0, students:[], share:{} });
+    state.batches.push({ id, name:`Batch ${guessNum}`, students:[], previous:[], share:{} });
     activeBatchId = id; save(); render();
 };
 window.renameBatch = (id) => {
@@ -390,7 +433,6 @@ window.deleteBatch = (id) => {
     if (activeBatchId===id) activeBatchId = state.batches[0].id;
     save(); render();
 };
-window.setPrevReceived = (v) => { activeBatch().previousReceived = num(v); save(); renderKpis(); };
 
 /* ====================================================================
    RENDER ROOT
@@ -409,13 +451,14 @@ function render(){
     if (activeTab === 'students')      c.innerHTML = viewStudents();
     else if (activeTab === 'installments') c.innerHTML = viewInstallments();
     else if (activeTab === 'breakdown')c.innerHTML = viewBreakdown();
+    else if (activeTab === 'previous')  c.innerHTML = viewPrevious();
     else if (activeTab === 'summary')  c.innerHTML = viewSummary();
     else if (activeTab === 'share')  { c.innerHTML = viewShare(); wireShare(); }
 }
 
 function renderBatchBar(){
     const bar = document.getElementById('batch-bar');
-    const batchScoped = ['students','breakdown','share'].includes(activeTab);
+    const batchScoped = ['students','breakdown','previous','share'].includes(activeTab);
     if (!batchScoped) { bar.innerHTML = ''; bar.classList.add('hidden-view'); return; }
     bar.classList.remove('hidden-view');
     bar.innerHTML = state.batches.map(b => `
@@ -538,9 +581,16 @@ window.openStudentModal = (id) => {
                 <div><label class="text-xs font-semibold text-slate-400">Name</label><input id="m-name" class="field mt-1" value="${esc(s.name)}" placeholder="Student name"></div>
                 <div><label class="text-xs font-semibold text-slate-400">Contact</label><input id="m-contact" class="field mt-1" value="${esc(s.contact)}" placeholder="03xx xxxxxxx"></div>
                 <div><label class="text-xs font-semibold text-slate-400">Bundle Type</label>
-                    <select id="m-bundle" class="field mt-1" onchange="modalBundleChange()">
-                        ${BUNDLES.map(x=>`<option value="${x.id}" ${s.bundleType===x.id?'selected':''}>${x.name} (${x.count} course${x.count>1?'s':''})</option>`).join('')}
-                    </select>
+                    <div class="cdd mt-1" data-cdd>
+                        <input type="hidden" id="m-bundle" value="${s.bundleType}">
+                        <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
+                            <span id="m-bundle-label" class="cdd-val">${bundleLabel(s.bundleType)}</span>
+                            <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                        <ul class="cdd-menu">
+                            ${BUNDLES.map(x=>`<li class="cdd-opt ${s.bundleType===x.id?'active':''}" onclick="cddSelect('${x.id}')">${bundleLabel(x.id)}</li>`).join('')}
+                        </ul>
+                    </div>
                 </div>
                 <div><label class="text-xs font-semibold text-slate-400">Enroll date</label><input id="m-date" class="field mt-1" value="${esc(s.date)}" placeholder="e.g. 28 June"></div>
             </div>
@@ -561,6 +611,24 @@ window.openStudentModal = (id) => {
     </div>`;
     modalBundleChange();
 };
+function bundleLabel(id){ const x = BUNDLE[id]; return x ? `${x.name} (${x.count} course${x.count>1?'s':''})` : ''; }
+window.cddToggle = (btn) => {
+    const cdd = btn.closest('[data-cdd]');
+    document.querySelectorAll('[data-cdd].open').forEach(x => { if (x !== cdd) x.classList.remove('open'); });
+    cdd.classList.toggle('open');
+};
+window.cddSelect = (val) => {
+    document.getElementById('m-bundle').value = val;
+    document.getElementById('m-bundle-label').innerText = bundleLabel(val);
+    const cdd = document.querySelector('[data-cdd]');
+    cdd.classList.remove('open');
+    cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${val}'`)));
+    modalBundleChange();
+};
+// close any open custom dropdown when clicking outside it
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-cdd]')) document.querySelectorAll('[data-cdd].open').forEach(x => x.classList.remove('open'));
+});
 window.modalBundleChange = () => {
     const type = document.getElementById('m-bundle').value;
     const max = BUNDLE[type].count;
@@ -613,7 +681,8 @@ function viewInstallments(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
         return `
         <tr>
-            <td class="font-semibold text-white">${esc(s.name)}<div class="text-xs text-slate-500">${esc(s.contact)||''}</div></td>
+            <td class="font-semibold text-white">${esc(s.name)}</td>
+            <td class="text-slate-300 num">${esc(s.contact)||'<span class=\'text-slate-600\'>—</span>'}</td>
             <td><span class="badge glass text-slate-300">${esc(b.name)}</span></td>
             <td class="text-slate-300">${esc(programLabel(s))}</td>
             <td class="text-right num text-emerald-400">${money(s.feePaid)}</td>
@@ -640,8 +709,8 @@ function viewInstallments(){
         </div>
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
-                <thead><tr><th>Student</th><th>Batch</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="7" class="text-center text-slate-500 py-10">🎉 No pending balances. Everyone is fully paid.</td></tr>`}</tbody>
+                <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="8" class="text-center text-slate-500 py-10">🎉 No pending balances. Everyone is fully paid.</td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -706,25 +775,22 @@ function viewBreakdown(){
 
     const rec = b.students.reduce((a,s)=>a+num(s.feePaid),0);
     const pen = b.students.reduce((a,s)=>a+num(s.feePending),0);
-    const prev = num(b.previousReceived);
+    const prev = batchPrevReceived(b);
+    const prevPen = batchPrevPending(b);
     return `
     <div class="space-y-5">
         <div class="glass rounded-3xl p-6 md:p-7">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <h2 class="text-xl font-bold text-white">${esc(b.name)} — Bundle & Course Breakdown</h2>
-                    <p class="text-slate-400 text-sm">Auto-calculated from student records.</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    <label class="text-xs font-semibold text-slate-400">Previous batch received</label>
-                    <input type="number" value="${prev||''}" oninput="setPrevReceived(this.value)" placeholder="0" class="field w-40">
+                    <p class="text-slate-400 text-sm">Auto-calculated from student records. Previous-batch carry-forward is managed in the <button onclick="setTab('previous')" class="text-violet-300 font-semibold">Previous Batch</button> tab.</p>
                 </div>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
                 ${miniStat('Received (this batch)', money(rec), '#34d399')}
-                ${miniStat('Pending', money(pen), '#fb7185')}
-                ${miniStat('Total incl. previous', money(rec+prev), '#a78bfa')}
-                ${miniStat('Total with pending', money(rec+prev+pen), '#22d3ee')}
+                ${miniStat('Pending', money(pen+prevPen), '#fb7185')}
+                ${miniStat('Total received (incl. previous)', money(rec+prev), '#a78bfa')}
+                ${miniStat('Total with pending', money(rec+prev+pen+prevPen), '#22d3ee')}
             </div>
         </div>
         ${sections}
@@ -737,6 +803,117 @@ function miniStat(label, val, color){
 }
 
 /* ====================================================================
+   TAB: PREVIOUS BATCH PAYMENTS (carry-forward, no student name/contact)
+   ==================================================================== */
+function viewPrevious(){
+    const b = activeBatch();
+    const list = b.previous || [];
+    const rec = batchPrevReceived(b), pen = batchPrevPending(b);
+    const rows = list.map((e,i) => `
+        <tr>
+            <td class="text-slate-500 num">${i+1}</td>
+            <td><span class="badge" style="background:${BUNDLE[e.bundleType]?.accent}22;color:${BUNDLE[e.bundleType]?.accent}">${BUNDLE[e.bundleType]?.name||'—'}</span></td>
+            <td class="text-slate-200">${esc(programLabel(e))}</td>
+            <td class="text-right num text-emerald-400 font-semibold">${money(e.received)}</td>
+            <td class="text-right num ${num(e.pending)>0?'text-rose-400':'text-slate-500'} font-semibold">${money(e.pending)}</td>
+            <td class="text-right num text-white font-semibold">${money(num(e.received)+num(e.pending))}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openPrevModal('${e.id}')" class="text-slate-400 hover:text-violet-300 px-2" title="Edit">✎</button>
+                <button onclick="deletePrevEntry('${e.id}')" class="text-slate-400 hover:text-rose-400 px-2" title="Delete">🗑</button>
+            </td>
+        </tr>`).join('');
+
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Previous Batch Payments</h2>
+                <p class="text-slate-400 text-sm">Payments carried in from earlier batches. Course-wise, no student details needed.</p>
+            </div>
+            <button onclick="openPrevModal()" class="btn-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm">+ Add Payment</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            ${miniStat('Previous received', money(rec), '#34d399')}
+            ${miniStat('Previous pending', money(pen), '#fb7185')}
+            ${miniStat('Total', money(rec+pen), '#22d3ee')}
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>#</th><th>Bundle</th><th>Course / Combo</th><th class="text-right">Received</th><th class="text-right">Pending</th><th class="text-right">Total</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="7" class="text-center text-slate-500 py-10">No previous-batch payments yet. Click <b class="text-violet-300">+ Add Payment</b>.</td></tr>`}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+window.deletePrevEntry = (id) => {
+    const b = activeBatch();
+    if (!confirm("Delete this previous-batch payment?")) return;
+    b.previous = (b.previous||[]).filter(e=>e.id!==id); save(); render();
+};
+window.openPrevModal = (id) => {
+    const b = activeBatch();
+    const editing = id ? (b.previous||[]).find(e=>e.id===id) : null;
+    const e = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], received:'', pending:'' };
+    const courseChecks = COURSES.map(c => `
+        <label class="flex items-center gap-2 px-3 py-2 rounded-lg glass cursor-pointer text-sm">
+            <input type="checkbox" class="course-chk accent-violet-500" value="${c.id}" ${e.courses.includes(c.id)?'checked':''}>
+            <span class="text-slate-200">${c.name}</span>
+        </label>`).join('');
+    document.getElementById('modal-root').innerHTML = `
+    <div class="fixed inset-0 z-[60] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(2,4,10,0.7)" onclick="if(event.target===this)closeModal()">
+        <div class="glass rounded-3xl p-6 md:p-8 w-full max-w-2xl my-6 fade-in" style="background:#0b0e17">
+            <div class="flex items-center justify-between mb-5">
+                <h3 class="text-lg font-bold text-white">${editing?'Edit':'Add'} Previous Payment · <span class="text-violet-300">${esc(b.name)}</span></h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="text-xs font-semibold text-slate-400">Bundle Type</label>
+                    <div class="cdd mt-1" data-cdd>
+                        <input type="hidden" id="m-bundle" value="${e.bundleType}">
+                        <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
+                            <span id="m-bundle-label" class="cdd-val">${bundleLabel(e.bundleType)}</span>
+                            <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </button>
+                        <ul class="cdd-menu">
+                            ${BUNDLES.map(x=>`<li class="cdd-opt ${e.bundleType===x.id?'active':''}" onclick="cddSelect('${x.id}')">${bundleLabel(x.id)}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                <div class="hidden md:block"></div>
+            </div>
+            <div class="mt-4">
+                <label class="text-xs font-semibold text-slate-400">Course selection <span id="m-course-hint" class="text-slate-500"></span></label>
+                <div id="m-courses" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">${courseChecks}</div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div><label class="text-xs font-semibold text-emerald-400">Amount Received</label><input id="m-paid" type="number" class="field mt-1" value="${e.received}" placeholder="0"></div>
+                <div><label class="text-xs font-semibold text-rose-400">Amount Pending</label><input id="m-pending" type="number" class="field mt-1" value="${e.pending}" placeholder="0"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Cancel</button>
+                <button onclick="savePrevEntry('${editing?editing.id:''}')" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add payment'}</button>
+            </div>
+        </div>
+    </div>`;
+    modalBundleChange();
+};
+window.savePrevEntry = (id) => {
+    const b = activeBatch();
+    const courses = [...document.querySelectorAll('.course-chk')].filter(c=>c.checked).map(c=>c.value);
+    const data = {
+        bundleType: document.getElementById('m-bundle').value,
+        courses,
+        received: num(document.getElementById('m-paid').value),
+        pending: num(document.getElementById('m-pending').value),
+    };
+    if (!courses.length) return alert("Please select at least one course.");
+    b.previous = b.previous || [];
+    if (id) { const e = b.previous.find(x=>x.id===id); Object.assign(e, data); }
+    else { b.previous.push(normalizePrev(data)); }
+    save(); closeModal(); render();
+};
+
+/* ====================================================================
    TAB: SUMMARY (all batches + by program)
    ==================================================================== */
 function viewSummary(){
@@ -746,7 +923,7 @@ function viewSummary(){
         const rec=b.students.reduce((a,s)=>a+num(s.feePaid),0);
         const pen=b.students.reduce((a,s)=>a+num(s.feePending),0);
         const ref=b.students.reduce((a,s)=>a+num(s.refunded),0);
-        const prev=num(b.previousReceived);
+        const prev=batchPrevReceived(b);
         gRec+=rec; gPen+=pen; gRef+=ref; gPrev+=prev;
         return `<tr>
             <td class="font-semibold text-white">${esc(b.name)}</td>
@@ -851,12 +1028,29 @@ function sumRow(label, val, color, big){
    TAB: PROFIT SHARE  (original logic, dark themed)
    Owner 40% · Future 36% · remaining 24% split among team (lead gets 12%)
    ==================================================================== */
+function batchReceivedPerCourse(batch){
+    // Each student's received fee (feePaid) is split evenly across the courses
+    // in their bundle, so per-course totals always sum to the batch's real received.
+    const per = {}; COURSES.forEach(c => per[c.id] = 0);
+    batch.students.forEach(s => {
+        const n = (s.courses && s.courses.length) ? s.courses.length : 0;
+        if (!n) return;
+        const part = num(s.feePaid) / n;
+        s.courses.forEach(cid => { if (per[cid] !== undefined) per[cid] += part; });
+    });
+    return per;
+}
 function viewShare(){
     const b = activeBatch();
+    const per = batchReceivedPerCourse(b);
+    const totalRec = Object.values(per).reduce((a,v)=>a+v,0);
     const inputs = COURSES.map(c => `
         <div>
             <label class="block text-xs font-semibold text-slate-400 mb-1">${c.name}${SHARE_LEAD[c.id]?` · <span class="text-violet-300">${SHARE_LEAD[c.id]}</span>`:''}</label>
-            <input type="number" data-service="${c.id}" oninput="handleShareInput('${c.id}', this.value)" value="${b.share[c.id]||''}" class="field share-input" placeholder="0">
+            <div class="field readonly-field">
+                <span class="text-slate-500 text-xs font-semibold">Rs</span>
+                <span class="num font-bold ${per[c.id]>0?'text-white':'text-slate-600'}">${Math.round(per[c.id]).toLocaleString()}</span>
+            </div>
         </div>`).join('');
     const teamRows = TEAM.map(name => `
         <div class="flex justify-between items-center bg-white/5 px-4 py-2.5 rounded-xl text-sm">
@@ -871,11 +1065,15 @@ function viewShare(){
                 <h2 class="text-xl font-bold text-white">${esc(b.name)} — Profit Distribution</h2>
                 <p class="text-slate-400 text-sm">Owner 40% · Future fund 36% · Team pool 24% (service lead earns 12%).</p>
             </div>
-            <button onclick="autofillShare()" class="glass px-4 py-2.5 rounded-xl text-sm font-semibold text-violet-300 hover:text-white">↻ Auto-fill from received</button>
+            <div class="text-right">
+                <p class="text-xs text-slate-500">Batch received</p>
+                <p class="text-lg font-extrabold text-emerald-400 num">${money(totalRec)}</p>
+            </div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Revenue by Service</h3>
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Revenue by Service</h3>
+                <p class="text-xs text-slate-500 mb-4">Auto-calculated from this batch's received fees. Bundle fees are split evenly across their courses.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
             </div>
             <div class="rounded-2xl p-6 text-white" style="background:linear-gradient(160deg,#0b0e1a,#131a2e);border:1px solid var(--stroke)">
@@ -894,24 +1092,14 @@ function viewShare(){
     </div>`;
 }
 function cssId(name){ return name.replace(/\s+/g,'_'); }
-window.handleShareInput = (serviceId, val) => {
-    activeBatch().share[serviceId] = num(val);
-    computeShare(); save();
-};
-window.autofillShare = () => {
-    const b = activeBatch();
-    // sum received for single-course students per course
-    const perCourse = {};
-    b.students.forEach(s => { if (s.bundleType==='single' && s.courses[0]) perCourse[s.courses[0]] = (perCourse[s.courses[0]]||0)+num(s.feePaid); });
-    b.share = perCourse; save(); render();
-};
 function wireShare(){ computeShare(); }
 function computeShare(){
     const b = activeBatch();
+    const per = batchReceivedPerCourse(b);
     let ownerTotal=0, futureTotal=0, grand=0;
     const results = {}; TEAM.forEach(n=>results[n]=0);
     COURSES.forEach(c => {
-        const val = num(b.share[c.id]); grand += val;
+        const val = num(per[c.id]); grand += val;
         ownerTotal += val*0.40; futureTotal += val*0.36;
         const lead = SHARE_LEAD[c.id];
         const pool = val*0.24;
