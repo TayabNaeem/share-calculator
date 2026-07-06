@@ -41,12 +41,12 @@ A single-file, dark-theme dashboard for managing a training institute's batches,
    }
    ```
 
-### Roles
-- **Owner** (hard-coded email in `index.html` `OWNER_EMAIL` and in the rules): full control, manages users. Can never be locked out.
-- **Admin**: can manage all payments (add/edit/delete).
+### Roles & accounts
+- **Owner** (hard-coded email in `index.html` `OWNER_EMAIL` and in the rules): full control, manages users, edits the company profile (name + logo). Can never be locked out.
+- **Admin**: can manage all payments (add/edit/delete) and download the profit-share report.
 - **Viewer**: read-only.
 
-The owner adds team members by email via the avatar menu → **Manage users**. Everyone shares one dataset stored at `app/data`.
+There is **no public sign-up**. The owner creates each login (name, email, password, role) from the avatar menu → **Manage users → Create login**. Sign-in only works for the owner and emails the owner has added — any other authenticated email is signed out with a "not authorised" message. Users can change their own name/password from the profile menu, and reset a forgotten password via **Forgot password?** (or the owner can send them a reset link). Everyone shares one dataset stored at `app/data`; the company name and logo are stored there too.
 
 4. Paste your `firebaseConfig` into the `firebaseConfig` object near the bottom of `index.html` (see the `SETUP` comment).
 

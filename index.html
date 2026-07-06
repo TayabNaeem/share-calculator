@@ -133,13 +133,13 @@
     <div class="glass rounded-3xl p-8 shadow-2xl">
         <h2 id="auth-title" class="text-xl font-bold text-white mb-5 text-center">Sign In</h2>
         <div class="space-y-3">
-            <input id="name" type="text" placeholder="Full name" class="field hidden-view">
             <input id="email" type="email" placeholder="Email address" class="field">
-            <input id="password" type="password" placeholder="Password" class="field">
+            <div class="relative">
+                <input id="password" type="password" placeholder="Password" class="field pr-11">
+                <button type="button" onclick="togglePw('password', this)" tabindex="-1" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200" title="Show/hide password">👁</button>
+            </div>
             <button onclick="handleAuth()" id="auth-btn" class="btn-primary w-full text-white py-3 rounded-xl font-bold">Sign In</button>
-            <div class="flex items-center justify-between text-sm gap-2">
-                <p class="text-slate-400"><span id="toggle-text">Don't have an account?</span>
-                    <button onclick="toggleAuthMode()" class="text-violet-400 font-bold ml-1" id="toggle-btn">Sign Up</button></p>
+            <div class="flex items-center justify-end text-sm">
                 <button id="forgot-link" onclick="handleForgotPassword()" class="text-slate-400 hover:text-violet-300 font-medium whitespace-nowrap">Forgot password?</button>
             </div>
             <div class="relative flex items-center justify-center my-1">
@@ -160,9 +160,9 @@
     <!-- Header -->
     <header class="flex flex-wrap justify-between items-center gap-4 mb-6">
         <div class="flex items-center gap-3">
-            <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-sm" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">SM</div>
+            <div id="brand-logo" class="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center text-white font-black text-sm shrink-0" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">SM</div>
             <div>
-                <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">Skillmentor.pk</h1>
+                <h1 id="brand-name" class="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">Skillmentor.pk</h1>
                 <p class="text-slate-400 text-sm">Revenue &amp; Profit Dashboard</p>
             </div>
         </div>
@@ -179,6 +179,7 @@
                     </div>
                     <button onclick="openEditName()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">✎ Edit name</button>
                     <button onclick="openChangePassword()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">🔑 Change password</button>
+                    <button id="pm-company" onclick="openCompanyProfile()" class="hidden-view w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">🏢 Company profile</button>
                     <button id="pm-manage" onclick="openManageUsers()" class="hidden-view w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-white/5 transition">👥 Manage users</button>
                     <button onclick="signOutUser()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-rose-400 hover:bg-rose-500/10 transition">⎋ Sign out</button>
                 </div>
@@ -264,40 +265,27 @@ try {
     provider = new GoogleAuthProvider();
 } catch (e) { console.warn("Firebase init skipped:", e.message); }
 
-let isSignUp = false, suppressBoot = false;
-function applyAuthMode(){
-    el('auth-title').innerText = isSignUp ? "Create Account" : "Sign In";
-    el('auth-btn').innerText   = isSignUp ? "Sign Up" : "Sign In";
-    el('toggle-text').innerText= isSignUp ? "Already have an account?" : "Don't have an account?";
-    el('toggle-btn').innerText = isSignUp ? "Sign In" : "Sign Up";
-    el('name').classList.toggle('hidden-view', !isSignUp);
-    el('forgot-link').classList.toggle('hidden-view', isSignUp);
+// Accounts are created by the owner from the dashboard — no public sign-up.
+window.togglePw = (id, btn) => {
+    const i = document.getElementById(id); if (!i) return;
+    const show = i.type === 'password';
+    i.type = show ? 'text' : 'password';
+    if (btn) btn.innerText = show ? '🙈' : '👁';
+};
+function pwField(id, ph){
+    return `<div class="relative">
+        <input id="${id}" type="password" class="field pr-11 mt-1" placeholder="${ph||''}">
+        <button type="button" onclick="togglePw('${id}',this)" tabindex="-1" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200" title="Show/hide">👁</button>
+    </div>`;
 }
-window.toggleAuthMode = () => { isSignUp = !isSignUp; el('error-msg').innerText=''; applyAuthMode(); };
 window.handleAuth = async () => {
     const email = el('email').value.trim(), password = el('password').value, error = el('error-msg');
     error.style.color = '';
     if (!isConfigured) { error.innerText = "Add your Firebase config first (see SETUP in the code)."; return; }
     try {
-        if (isSignUp) {
-            const name = el('name').value.trim();
-            if (!name) { error.innerText = "Please enter your name."; return; }
-            suppressBoot = true;
-            const cred = await createUserWithEmailAndPassword(auth, email, password);
-            await updateProfile(cred.user, { displayName: name });
-            try { await setDoc(doc(db, "requests", cred.user.uid), { email: email.toLowerCase(), name, createdAt: Date.now() }); }
-            catch(e){ console.warn("Could not save access request:", e); }
-            await signOut(auth);
-            isSignUp = false; applyAuthMode();
-            el('password').value = ''; el('name').value = '';
-            error.style.color = '#34d399';
-            error.innerText = "Account created! You'll be able to sign in once the owner approves your access.";
-        } else {
-            await signInWithEmailAndPassword(auth, email, password);
-            error.innerText = '';
-        }
+        await signInWithEmailAndPassword(auth, email, password);
+        error.innerText = '';
     } catch (e) { error.style.color=''; error.innerText = friendlyErr(e); }
-    finally { suppressBoot = false; }
 };
 window.handleGoogleAuth = async () => {
     const error = el('error-msg'); error.style.color = '';
@@ -322,7 +310,7 @@ function escJs(s){ return String(s||'').replace(/'/g, "\\'"); }
 
 /* ============ Roles & access ============ */
 window.__owner = OWNER_EMAIL;
-let currentUser = null, currentRole = 'none', membersData = { admins: [], viewers: [] };
+let currentUser = null, currentRole = 'none', membersData = { admins: [], viewers: [] }, membersReady = false, unauthorizedEmail = '';
 const isOwnerEmail = (e) => !!e && e.toLowerCase() === OWNER_EMAIL.toLowerCase();
 function computeRole(email){
     if (!email) return 'none';
@@ -362,9 +350,10 @@ function subscribeMembers(){
     if (unsubM) unsubM();
     unsubM = onSnapshot(membersRef, (snap) => {
         membersData = snap.exists() ? { admins: snap.data().admins||[], viewers: snap.data().viewers||[] } : { admins:[], viewers:[] };
+        membersReady = true;
         applyRole();
         if (document.getElementById('mu-list')) renderManageUsers();
-    }, () => { membersData = { admins:[], viewers:[] }; applyRole(); });
+    }, () => { membersData = { admins:[], viewers:[] }; membersReady = false; applyRole(); });
 }
 function subscribeData(){
     if (unsub) unsub();
@@ -399,15 +388,20 @@ async function ensureAccessRequest(){
 }
 function applyRole(){
     currentRole = computeRole(currentUser && currentUser.email);
+    const none = currentRole === 'none';
+    // Access is owner-added-only: sign out any authenticated email that has no role.
+    if (none && membersReady && currentUser && !isOwnerEmail(currentUser.email)) {
+        unauthorizedEmail = currentUser.email || '';
+        signOut(auth);
+        return;
+    }
     updateProfileUI();
     document.body.classList.toggle('role-viewer', currentRole === 'viewer');
-    const none = currentRole === 'none';
     el('noaccess').classList.toggle('hidden-view', !none);
     el('app-main').classList.toggle('hidden-view', none);
     el('sync-pill').classList.toggle('hidden-view', none);
     el('pm-manage').classList.toggle('hidden-view', currentRole !== 'owner');
-    // Signed-in but no role (e.g. Google sign-up) → register a pending request for the owner
-    if (none && currentUser && !isOwnerEmail(currentUser.email)) ensureAccessRequest();
+    el('pm-company').classList.toggle('hidden-view', currentRole !== 'owner');
 }
 window.__queueSave = () => {
     if (!dataRef || !canEdit()) return;
@@ -467,9 +461,9 @@ window.openChangePassword = () => {
     el('profile-menu').classList.add('hidden-view');
     modalShell('Change password', `
         <div class="space-y-3">
-            <div><label class="text-xs font-semibold text-slate-400">Current password</label><input id="pf-cur" type="password" class="field mt-1"></div>
-            <div><label class="text-xs font-semibold text-slate-400">New password</label><input id="pf-new" type="password" class="field mt-1" placeholder="min 6 characters"></div>
-            <div><label class="text-xs font-semibold text-slate-400">Confirm new password</label><input id="pf-new2" type="password" class="field mt-1"></div>
+            <div><label class="text-xs font-semibold text-slate-400">Current password</label>${pwField('pf-cur')}</div>
+            <div><label class="text-xs font-semibold text-slate-400">New password</label>${pwField('pf-new','min 6 characters')}</div>
+            <div><label class="text-xs font-semibold text-slate-400">Confirm new password</label>${pwField('pf-new2')}</div>
         </div>
         <p id="pf-err" class="text-rose-400 text-sm mt-2"></p>`,
         `<button onclick="doChangePassword()" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">Update password</button>`);
@@ -525,17 +519,26 @@ function renderManageUsers(){
             <p class="text-xs text-slate-400">Owner · full control</p><p class="text-sm text-white font-semibold truncate">${escHtml(OWNER_EMAIL)}</p>
         </div>
         ${pendingHtml}
-        <p class="text-xs text-slate-400 mb-2">Add a team member by email. <b class="text-violet-300">Admin</b> can manage payments; <b class="text-cyan-300">Viewer</b> can only view. They must sign up with that same email.</p>
-        <div class="flex gap-2 mb-4">
-            <input id="mu-email" class="field flex-1" placeholder="user@email.com">
-            <div class="cdd" data-cdd style="width:120px">
-                <input type="hidden" id="mu-role" value="viewer">
-                <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)"><span id="mu-role-label" class="cdd-val">Viewer</span><svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-                <ul class="cdd-menu"><li class="cdd-opt active" onclick="muRole('viewer')">Viewer</li><li class="cdd-opt" onclick="muRole('admin')">Admin</li></ul>
+        <p class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">Create a login</p>
+        <p class="text-xs text-slate-400 mb-3">You set their email &amp; password. <b class="text-violet-300">Admin</b> can manage payments; <b class="text-cyan-300">Viewer</b> can only view.</p>
+        <div class="space-y-2 mb-4">
+            <input id="mu-name" class="field" placeholder="Full name">
+            <input id="mu-email" class="field" placeholder="user@email.com" autocomplete="off">
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <input id="mu-pass" type="password" class="field pr-11" placeholder="Password (min 6 chars)" autocomplete="new-password">
+                    <button type="button" onclick="togglePw('mu-pass', this)" tabindex="-1" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">👁</button>
+                </div>
+                <div class="cdd" data-cdd style="width:120px">
+                    <input type="hidden" id="mu-role" value="viewer">
+                    <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)"><span id="mu-role-label" class="cdd-val">Viewer</span><svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                    <ul class="cdd-menu"><li class="cdd-opt active" onclick="muRole('viewer')">Viewer</li><li class="cdd-opt" onclick="muRole('admin')">Admin</li></ul>
+                </div>
             </div>
-            <button onclick="addMember()" class="btn-primary text-white px-4 rounded-xl font-bold">Add</button>
+            <button onclick="createUserAccount()" id="mu-create-btn" class="btn-primary text-white w-full py-2.5 rounded-xl font-bold">Create login</button>
         </div>
-        <div id="mu-list" class="space-y-2 max-h-64 overflow-y-auto">${list}</div>
+        <p class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">Team members</p>
+        <div id="mu-list" class="space-y-2 max-h-56 overflow-y-auto">${list}</div>
         <p id="mu-err" class="text-rose-400 text-sm mt-2"></p>`, '', true);
 }
 window.muRole = (r) => {
@@ -549,15 +552,39 @@ async function persistMembers(data, errEl){
     try { await setDoc(membersRef, data); membersData = data; renderManageUsers(); }
     catch(e){ const m = "Save failed: " + friendlyErr(e); if (errEl) errEl.innerText = m; else alert(m); console.error(e); }
 }
-window.addMember = async () => {
+// Secondary Firebase app so creating a user doesn't replace the owner's session.
+let secondaryApp = null;
+function secondaryAuth(){
+    if (!secondaryApp) secondaryApp = initializeApp(firebaseConfig, "secondary");
+    return getAuth(secondaryApp);
+}
+window.createUserAccount = async () => {
+    const name = (el('mu-name').value||'').trim();
     const email = (el('mu-email').value||'').trim().toLowerCase();
-    const role = el('mu-role').value, err = el('mu-err');
+    const password = el('mu-pass').value;
+    const role = el('mu-role').value;
+    const err = el('mu-err'); err.style.color = '';
+    if (!name) { err.innerText = "Enter a name."; return; }
     if (!email || !email.includes('@')) { err.innerText = "Enter a valid email."; return; }
     if (isOwnerEmail(email)) { err.innerText = "That's the owner account (already full access)."; return; }
-    const admins = (membersData.admins||[]).filter(e => e.toLowerCase() !== email);
-    const viewers = (membersData.viewers||[]).filter(e => e.toLowerCase() !== email);
-    if (role === 'admin') admins.push(email); else viewers.push(email);
-    await persistMembers({ admins, viewers }, err);
+    if ((password||'').length < 6) { err.innerText = "Password must be at least 6 characters."; return; }
+    const btn = el('mu-create-btn'); if (btn){ btn.disabled = true; btn.innerText = "Creating…"; }
+    try {
+        const secAuth = secondaryAuth();
+        const cred = await createUserWithEmailAndPassword(secAuth, email, password);
+        try { await updateProfile(cred.user, { displayName: name }); } catch(_) {}
+        await signOut(secAuth);
+        // grant the role immediately
+        const admins = (membersData.admins||[]).filter(e => e.toLowerCase() !== email);
+        const viewers = (membersData.viewers||[]).filter(e => e.toLowerCase() !== email);
+        if (role === 'admin') admins.push(email); else viewers.push(email);
+        await setDoc(membersRef, { admins, viewers }); membersData = { admins, viewers };
+        renderManageUsers();
+        const e2 = el('mu-err'); if (e2) { e2.style.color = '#34d399'; e2.innerText = `Login created for ${email} — they can sign in now as ${role}.`; }
+    } catch(e){
+        const e2 = el('mu-err'); if (e2) { e2.style.color = ''; e2.innerText = friendlyErr(e); }
+        const b2 = el('mu-create-btn'); if (b2){ b2.disabled = false; b2.innerText = "Create login"; }
+    }
 };
 window.resetMemberPassword = async (email) => {
     if (!confirm(`Send a password reset link to ${email}?`)) return;
@@ -596,7 +623,6 @@ window.dismissRequest = async (uid) => {
 };
 
 onAuthStateChanged(auth || {}, (user) => {
-    if (user && suppressBoot) return;   // during sign-up we sign the user straight back out
     if (user) {
         el('auth-container').classList.add('hidden-view');
         el('config-banner').classList.add('hidden-view');
@@ -606,7 +632,12 @@ onAuthStateChanged(auth || {}, (user) => {
         el('app-container').classList.add('hidden-view');
         el('auth-container').classList.remove('hidden-view');
         document.body.classList.remove('role-viewer');
-        currentUser = null; currentRole = 'none'; requestEnsured = false;
+        currentUser = null; currentRole = 'none'; membersReady = false;
+        if (unauthorizedEmail) {
+            const err = el('error-msg'); err.style.color = '';
+            err.innerText = `${unauthorizedEmail} isn't authorised. Ask the owner to create a login for you.`;
+            unauthorizedEmail = '';
+        }
         if (!isConfigured) el('config-banner').classList.remove('hidden-view');
     }
 });
@@ -645,6 +676,8 @@ let activeTab = 'students';
 function seedState(){
     const id = 'b' + Date.now();
     return {
+        companyName: 'Skillmentor.pk',
+        logo: '',
         batches: [
             { id:'b_batch2', name:'Batch 2', students:[], previous:[], share:{} },
             { id, name:'Batch 5', students:[], previous:[], share:{} },
@@ -761,11 +794,88 @@ window.deleteBatch = (id) => {
     save(); render();
 };
 
+/* ---------- Company profile (owner): name + logo ---------- */
+let pendingLogo = null; // holds a freshly-picked logo data URL until saved
+window.openCompanyProfile = () => {
+    document.getElementById('profile-menu').classList.add('hidden-view');
+    if (window.__getRole && window.__getRole() !== 'owner') return;
+    pendingLogo = null;
+    const name = (state && state.companyName) || 'Skillmentor.pk';
+    const logo = (state && state.logo) || '';
+    const preview = logo
+        ? `<img id="cp-preview" src="${logo}" class="w-full h-full object-cover">`
+        : `<span id="cp-preview" class="text-white font-black text-lg">${esc((name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2)||'SM').toUpperCase())}</span>`;
+    document.getElementById('modal-root').innerHTML = `
+    <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(2,4,10,0.7)" onclick="if(event.target===this)closeModal()">
+        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 fade-in border border-white/10" style="background:#0b0e17">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">Company profile</h3><button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl">✕</button></div>
+            <div class="flex items-center gap-4 mb-5">
+                <div id="cp-logo-box" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">${preview}</div>
+                <div class="flex-1">
+                    <label class="btn-primary inline-block text-white px-4 py-2 rounded-xl font-bold text-sm cursor-pointer">Upload logo
+                        <input type="file" accept="image/*" class="hidden" onchange="handleLogoPick(event)">
+                    </label>
+                    ${logo ? `<button onclick="removeLogo()" class="ml-2 text-xs text-rose-400 hover:text-rose-300 font-semibold">Remove</button>` : ``}
+                    <p class="text-xs text-slate-500 mt-1">PNG/JPG, square works best.</p>
+                </div>
+            </div>
+            <label class="text-xs font-semibold text-slate-400">Company name</label>
+            <input id="cp-name" class="field mt-1" value="${esc(name)}" placeholder="Company name">
+            <p id="cp-err" class="text-rose-400 text-sm mt-2"></p>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal()" class="glass px-5 py-2.5 rounded-xl font-semibold text-slate-300">Cancel</button>
+                <button onclick="saveCompanyProfile()" class="btn-primary text-white px-6 py-2.5 rounded-xl font-bold">Save</button>
+            </div>
+        </div>
+    </div>`;
+};
+window.handleLogoPick = (ev) => {
+    const file = ev.target.files && ev.target.files[0]; if (!file) return;
+    if (!file.type.startsWith('image/')) { document.getElementById('cp-err').innerText = "Please choose an image file."; return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const max = 256; let { width, height } = img;
+            if (width > height && width > max) { height = Math.round(height * max / width); width = max; }
+            else if (height > max) { width = Math.round(width * max / height); height = max; }
+            const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            pendingLogo = canvas.toDataURL('image/png');
+            const box = document.getElementById('cp-logo-box');
+            if (box) box.innerHTML = `<img src="${pendingLogo}" class="w-full h-full object-cover">`;
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+window.removeLogo = () => { pendingLogo = ''; state.logo = ''; save(); render(); openCompanyProfile(); };
+window.saveCompanyProfile = () => {
+    const name = document.getElementById('cp-name').value.trim();
+    if (!name) { document.getElementById('cp-err').innerText = "Enter a company name."; return; }
+    state.companyName = name;
+    if (pendingLogo !== null) state.logo = pendingLogo;
+    save(); closeModal(); render();
+};
+
 /* ====================================================================
    RENDER ROOT
    ==================================================================== */
+function applyBranding(){
+    const name = (state && state.companyName) || 'Skillmentor.pk';
+    const logo = state && state.logo;
+    const nameEl = document.getElementById('brand-name');
+    const logoEl = document.getElementById('brand-logo');
+    if (nameEl) nameEl.innerText = name;
+    if (logoEl) {
+        if (logo) logoEl.innerHTML = `<img src="${logo}" alt="logo" class="w-full h-full object-cover">`;
+        else logoEl.innerText = (name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2) || 'SM').toUpperCase();
+    }
+    document.title = `${name} — Revenue & Profit Dashboard`;
+}
 function render(){
     if (!state) return;
+    applyBranding();
     // tabs active state
     document.querySelectorAll('.tab-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.tab === activeTab));
