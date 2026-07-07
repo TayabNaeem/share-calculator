@@ -133,12 +133,30 @@ async function migrateIfNeeded(){
     const old = await getDoc(doc(db, "dashboards", currentUser.uid));
     if (old.exists() && old.data().state) await setDoc(dataRef, { state: old.data().state });
 }
+// Record a signed-in-but-unapproved user as an access request the owner can approve,
+// then sign them out. (First sign-in creates the request; repeats are harmless no-ops.)
+let requestLogged = false;
+async function requestAccessThenSignOut(){
+    const u = currentUser;
+    unauthorizedEmail = u?.email || '';
+    if (!requestLogged && u) {
+        requestLogged = true;
+        try {
+            await setDoc(doc(db, "requests", u.uid), {
+                email: (u.email||'').toLowerCase(),
+                name: u.displayName || '',
+                provider: (u.providerData && u.providerData[0] && u.providerData[0].providerId) || 'password',
+                createdAt: Date.now()
+            });
+        } catch(e){ console.warn("Could not save access request:", e); }
+    }
+    try { await signOut(auth); } catch(_){}
+}
 function applyRole(){
     currentRole = computeRole(currentUser && currentUser.email);
     const none = currentRole === 'none';
     if (none && membersReady && currentUser && !isOwnerEmail(currentUser.email)) {
-        unauthorizedEmail = currentUser.email || '';
-        signOut(auth);
+        requestAccessThenSignOut();
         return;
     }
     updateProfileUI();
@@ -257,7 +275,10 @@ function renderManageUsers(){
             <p class="text-xs font-bold t-gold uppercase tracking-wide mb-2">Pending approvals (${pending.length})</p>
             <div class="space-y-2">${pending.map(r=>`
                 <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style="background:#FFCD5714;border:1px solid #FFCD5733">
-                    <div class="min-w-0"><p class="text-sm text-white truncate">${escHtml(r.name||'(no name)')}</p><p class="text-xs t-muted truncate">${escHtml(r.email||'')}</p></div>
+                    <div class="min-w-0">
+                        <p class="text-sm text-white truncate">${escHtml(r.name||'(no name)')} <span class="badge" style="background:rgba(255,255,255,0.08);color:var(--muted)">${r.provider==='google.com'?'Google':'Email'}</span></p>
+                        <p class="text-xs t-muted truncate">${escHtml(r.email||'')}</p>
+                    </div>
                     <div class="flex items-center gap-1 shrink-0">
                         <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','admin')" class="text-xs btn-primary px-2.5 py-1 rounded-lg font-bold">Approve · Admin</button>
                         <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','viewer')" class="text-xs btn-ghost text-[#FFCD57] px-2.5 py-1 rounded-lg font-bold">Viewer</button>
@@ -381,10 +402,10 @@ onAuthStateChanged(auth || {}, (user) => {
         el('app-container').classList.add('hidden-view');
         el('auth-container').classList.remove('hidden-view');
         document.body.classList.remove('role-viewer');
-        currentUser = null; currentRole = 'none'; membersReady = false;
+        currentUser = null; currentRole = 'none'; membersReady = false; requestLogged = false;
         if (unauthorizedEmail) {
             const err = el('error-msg'); err.style.color = '';
-            err.innerText = `${unauthorizedEmail} isn't authorised. Ask the owner to create a login for you.`;
+            err.innerText = `${unauthorizedEmail} — access is pending the owner's approval. Your request was sent; you'll be able to sign in once approved.`;
             unauthorizedEmail = '';
         }
         if (!isConfigured) el('config-banner').classList.remove('hidden-view');
