@@ -17,11 +17,26 @@ window.refreshIcons = refreshIcons;
    ===================================================================== */
 window.setTab = (t) => { activeTab = t; render(); };
 window.setBatch = (id) => { activeBatchId = id; save(); render(); };
+function nextBatchNum(){ return Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1; }
+function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{} }; }
 window.addBatch = () => {
-    const guessNum = Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1;
-    const id = 'b' + Date.now();
-    state.batches.push({ id, name:`Batch ${guessNum}`, students:[], previous:[], refunds:[], share:{} });
-    activeBatchId = id; save(); render();
+    const b = makeBatch(`Batch ${nextBatchNum()}`);
+    state.batches.push(b); activeBatchId = b.id; save(); render();
+};
+/* ---------- Drag-to-reorder batches ---------- */
+let dragBatchId = null;
+window.batchDragStart = (e, id) => { dragBatchId = id; try { e.dataTransfer.effectAllowed = 'move'; } catch(_){} };
+window.batchDragOver  = (e) => { e.preventDefault(); };
+window.batchDrop = (e, targetId) => {
+    e.preventDefault();
+    if (!dragBatchId || dragBatchId === targetId) { dragBatchId = null; return; }
+    const arr = state.batches;
+    const from = arr.findIndex(b => b.id === dragBatchId);
+    const to   = arr.findIndex(b => b.id === targetId);
+    if (from < 0 || to < 0) { dragBatchId = null; return; }
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    dragBatchId = null; save(); render();
 };
 window.renameBatch = (id) => {
     const b = state.batches.find(x=>x.id===id); if(!b) return;
@@ -61,6 +76,7 @@ function render(){
     c.classList.remove('fade-in'); void c.offsetWidth; c.classList.add('fade-in');
     if (activeTab === 'students')          c.innerHTML = viewStudents();
     else if (activeTab === 'installments') c.innerHTML = viewInstallments();
+    else if (activeTab === 'pending')      c.innerHTML = viewPending();
     else if (activeTab === 'breakdown')    c.innerHTML = viewBreakdown();
     else if (activeTab === 'previous')     c.innerHTML = viewPrevious();
     else if (activeTab === 'refunds')      c.innerHTML = viewRefunds();
@@ -71,13 +87,14 @@ function render(){
 
 function renderBatchBar(){
     const bar = document.getElementById('batch-bar');
-    const batchScoped = ['students','breakdown','previous','refunds','share'].includes(activeTab);
+    const batchScoped = ['students','pending','breakdown','previous','refunds','share'].includes(activeTab);
     if (!batchScoped) { bar.innerHTML = ''; bar.classList.add('hidden-view'); return; }
     bar.classList.remove('hidden-view');
-    bar.innerHTML = `<span class="text-[11px] font-bold uppercase tracking-wider t-muted mr-1 hidden sm:inline">Batch</span>`
+    bar.innerHTML = `<span class="text-[11px] font-bold uppercase tracking-wider t-muted mr-1 hidden sm:inline" title="Drag a batch to reorder">Batch</span>`
         + state.batches.map(b => `
         <button onclick="setBatch('${b.id}')" ondblclick="renameBatch('${b.id}')"
-            class="px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap ${b.id===activeBatchId?'btn-primary':'btn-ghost t-muted hover:text-white'}">
+            draggable="true" ondragstart="batchDragStart(event,'${b.id}')" ondragover="batchDragOver(event)" ondrop="batchDrop(event,'${b.id}')"
+            class="px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-grab active:cursor-grabbing ${b.id===activeBatchId?'btn-primary':'btn-ghost t-muted hover:text-white'}">
             ${esc(b.name)}
         </button>`).join('')
         + `<button onclick="addBatch()" class="edit-only inline-flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-bold t-coral btn-ghost hover:text-white transition">${ic('plus','w-4 h-4')} Batch</button>`;
@@ -203,9 +220,10 @@ window.cddToggle = (btn) => {
     cdd.classList.toggle('open');
 };
 window.cddSelect = (val) => {
-    document.getElementById('m-bundle').value = val;
+    const hidden = document.getElementById('m-bundle');
+    hidden.value = val;
     document.getElementById('m-bundle-label').innerText = bundleLabel(val);
-    const cdd = document.querySelector('[data-cdd]');
+    const cdd = hidden.closest('[data-cdd]');
     cdd.classList.remove('open');
     cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${val}'`)));
     modalBundleChange();
@@ -336,6 +354,142 @@ window.recordPayment = (bid, sid) => {
     s.installments = s.installments || [];
     s.installments.push({ amount: applied, date: new Date().toISOString().slice(0,10) });
     save(); render();
+};
+
+/* =====================================================================
+   TAB: PENDING PAYMENTS (standalone pending records, per batch)
+   ===================================================================== */
+function batchName(id){ return (state.batches.find(b=>b.id===id)||{}).name || '—'; }
+function batchPicker(selectedId){
+    return `<div class="cdd mt-1" data-cdd>
+        <input type="hidden" id="mp-batch" value="${selectedId}">
+        <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
+            <span id="mp-batch-label" class="cdd-val">${esc(batchName(selectedId))}</span>
+            <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <ul class="cdd-menu">${state.batches.map(b=>`<li class="cdd-opt ${b.id===selectedId?'active':''}" onclick="pendBatchSelect('${b.id}')">${esc(b.name)}</li>`).join('')}</ul>
+    </div>`;
+}
+window.pendBatchSelect = (id) => {
+    const h = document.getElementById('mp-batch'); h.value = id;
+    document.getElementById('mp-batch-label').innerText = batchName(id);
+    const cdd = h.closest('[data-cdd]');
+    cdd.classList.remove('open');
+    cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${id}'`)));
+};
+window.pendAddBatch = () => {
+    const name = (prompt("New batch name:", `Batch ${nextBatchNum()}`) || '').trim();
+    if (!name) return;
+    const b = makeBatch(name); state.batches.push(b); save();
+    const cdd = document.getElementById('mp-batch').closest('[data-cdd]');
+    cdd.querySelector('.cdd-menu').innerHTML = state.batches.map(x=>`<li class="cdd-opt ${x.id===b.id?'active':''}" onclick="pendBatchSelect('${x.id}')">${esc(x.name)}</li>`).join('');
+    pendBatchSelect(b.id);
+};
+
+function viewPending(){
+    const b = activeBatch();
+    const list = b.pending || [];
+    const batchTotal = batchPendingTotal(b);
+    const grand = globalTotals().pending;
+    const rows = list.map((p,i) => `
+        <tr>
+            <td class="t-muted num">${i+1}</td>
+            <td class="font-semibold text-white">${esc(p.name)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-white/70 num">${esc(p.contact)||'—'}</td>
+            <td>${bundleBadge(p.bundleType)}</td>
+            <td class="text-white/85">${esc(programLabel(p))}</td>
+            <td class="t-muted">${esc(p.date)||'—'}</td>
+            <td class="t-muted">${esc(p.note)||'—'}</td>
+            <td class="text-right num t-coral font-semibold">${money(p.amount)}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openPendingModal('${p.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="deletePending('${p.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
+            </td>
+        </tr>`).join('');
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Pending Payments</h2>
+                <p class="t-muted text-sm">All pending across every batch: <span class="t-coral font-semibold">${money(grand)}</span></p>
+            </div>
+            <button onclick="openPendingModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Pending</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            ${miniStat('This batch pending', money(batchTotal), COLOR.coral)}
+            ${miniStat('Entries', String(list.length), COLOR.gold)}
+            ${miniStat('All-batch pending', money(grand), COLOR.coral)}
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>#</th><th>Name</th><th>Contact</th><th>Bundle</th><th>Program</th><th>Date</th><th>Note</th><th class="text-right">Pending</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-10">No pending payments in this batch. Click <b class="t-coral">Add Pending</b>.</td></tr>`}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
+window.deletePending = (id) => {
+    const b = activeBatch();
+    if (!confirm("Delete this pending payment?")) return;
+    b.pending = (b.pending||[]).filter(p=>p.id!==id); save(); render();
+};
+window.openPendingModal = (id) => {
+    const cur = activeBatch();
+    // find entry across batches (edit) or default new for active batch
+    let owningBatchId = cur.id, editing = null;
+    if (id) for (const bb of state.batches){ const e = (bb.pending||[]).find(p=>p.id===id); if (e){ editing = e; owningBatchId = bb.id; break; } }
+    const p = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], name:'', contact:'', amount:'', date:'', note:'' };
+    tabModal(`${editing?'Edit':'Add'} Pending Payment`, `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="text-xs font-semibold t-muted">Batch</label>
+                <div class="flex gap-2 items-stretch">
+                    <div class="flex-1">${batchPicker(owningBatchId)}</div>
+                    <button type="button" onclick="pendAddBatch()" class="btn-ghost mt-1 px-3 rounded-xl text-sm font-semibold t-coral inline-flex items-center gap-1 shrink-0" title="Create a new batch">${ic('plus','w-4 h-4')} New</button>
+                </div>
+            </div>
+            <div><label class="text-xs font-semibold t-muted">Student name</label><input id="m-name" class="field mt-1" value="${esc(p.name)}" placeholder="Student name"></div>
+            <div><label class="text-xs font-semibold t-muted">Contact</label><input id="m-contact" class="field mt-1" value="${esc(p.contact)}" placeholder="03xx xxxxxxx"></div>
+            <div><label class="text-xs font-semibold t-muted">Bundle Type</label>${bundlePicker(p.bundleType)}</div>
+        </div>
+        <div class="mt-4">
+            <label class="text-xs font-semibold t-muted">Course selection <span id="m-course-hint" class="t-muted"></span></label>
+            <div id="m-courses" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">${courseChecksHtml(p.courses)}</div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div><label class="text-xs font-semibold t-coral">Pending Amount</label><input id="m-amount" type="number" class="field mt-1" value="${p.amount}" placeholder="0"></div>
+            <div><label class="text-xs font-semibold t-muted">Due date</label><input id="m-date" class="field mt-1" value="${esc(p.date)}" placeholder="e.g. 28 June"></div>
+            <div><label class="text-xs font-semibold t-muted">Note (optional)</label><input id="m-note" class="field mt-1" value="${esc(p.note)}" placeholder="e.g. 2nd installment"></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="savePending('${editing?editing.id:''}','${owningBatchId}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add pending'}</button>
+        </div>`);
+};
+window.savePending = (id, oldBatchId) => {
+    const targetId = document.getElementById('mp-batch').value;
+    const target = state.batches.find(b=>b.id===targetId) || activeBatch();
+    const courses = [...document.querySelectorAll('.course-chk')].filter(c=>c.checked).map(c=>c.value);
+    const data = {
+        name: document.getElementById('m-name').value.trim(),
+        contact: document.getElementById('m-contact').value.trim(),
+        bundleType: document.getElementById('m-bundle').value, courses,
+        amount: num(document.getElementById('m-amount').value),
+        date: document.getElementById('m-date').value.trim(),
+        note: document.getElementById('m-note').value.trim(),
+    };
+    if (!data.name) return alert("Please enter the student's name.");
+    if (id) {
+        // remove from old batch, then add to target (batch may have changed)
+        const old = state.batches.find(b=>b.id===oldBatchId);
+        if (old) old.pending = (old.pending||[]).filter(x=>x.id!==id);
+        target.pending = target.pending || [];
+        target.pending.push(normalizePending({ ...data, id }));
+    } else {
+        target.pending = target.pending || [];
+        target.pending.push(normalizePending(data));
+    }
+    save(); closeModal(); render();
 };
 
 /* =====================================================================

@@ -13,8 +13,8 @@ function seedState(){
         companyName: 'Skillmentor.pk',
         logo: '',
         batches: [
-            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], share:{} },
-            { id, name:'Batch 5', students:[], previous:[], refunds:[], share:{} },
+            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{} },
+            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{} },
         ],
         activeBatchId: id,
     };
@@ -40,11 +40,12 @@ window.__loadState = (incoming) => {
                     amount: num(s.refunded), date: s.date, reason: 'Migrated from student record'
                 }));
             });
+            const pending = Array.isArray(b.pending) ? b.pending.map(normalizePending) : [];
             return {
                 id: b.id || ('b'+Math.random().toString(36).slice(2)),
                 name: b.name || 'Batch',
                 students: (b.students||[]).map(normalizeStudent),
-                previous, refunds,
+                previous, refunds, pending,
                 share: b.share || {},
             };
         });
@@ -98,6 +99,16 @@ function programLabel(s){
 
 /* ---------- Batch-level calculations ---------- */
 function batchRefundTotal(b){ return (b.refunds||[]).reduce((a,r)=>a+num(r.amount),0); }
+function normalizePending(p){
+    return {
+        id: p.id || ('pd'+Math.random().toString(36).slice(2)),
+        name: p.name||'', contact: p.contact||'',
+        bundleType: p.bundleType || 'single',
+        courses: Array.isArray(p.courses) ? p.courses : [],
+        amount: num(p.amount), date: p.date || '', note: p.note || '',
+    };
+}
+function batchPendingTotal(b){ return (b.pending||[]).reduce((a,p)=>a+num(p.amount),0); }
 function batchPrevReceived(b){ return (b.previous||[]).reduce((a,e)=>a+num(e.received),0); }
 function batchPrevPending(b){ return (b.previous||[]).reduce((a,e)=>a+num(e.pending),0); }
 
@@ -105,6 +116,7 @@ function globalTotals(){
     let received=0, pending=0, refunded=0, students=0;
     state.batches.forEach(b => {
         b.students.forEach(s => { received += num(s.feePaid); pending += num(s.feePending); students++; });
+        pending += batchPendingTotal(b);   // standalone pending-payment records (all batches)
         refunded += batchRefundTotal(b);
     });
     return { received, pending, refunded, students };
