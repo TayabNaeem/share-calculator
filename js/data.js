@@ -13,8 +13,8 @@ function seedState(){
         companyName: 'Skillmentor.pk',
         logo: '',
         batches: [
-            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{} },
-            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{} },
+            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' },
+            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' },
         ],
         activeBatchId: id,
     };
@@ -47,6 +47,8 @@ window.__loadState = (incoming) => {
                 students: (b.students||[]).map(normalizeStudent),
                 previous, refunds, pending,
                 share: b.share || {},
+                shareSettled: !!b.shareSettled,
+                settledAt: b.settledAt || '',
             };
         });
         if (!state.batches.length) state = seedState();

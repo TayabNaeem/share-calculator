@@ -18,7 +18,7 @@ window.refreshIcons = refreshIcons;
 window.setTab = (t) => { activeTab = t; render(); };
 window.setBatch = (id) => { activeBatchId = id; save(); render(); };
 function nextBatchNum(){ return Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1; }
-function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{} }; }
+function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' }; }
 window.addBatch = () => {
     const b = makeBatch(`Batch ${nextBatchNum()}`);
     state.batches.push(b); activeBatchId = b.id; save(); render();
@@ -95,8 +95,9 @@ function renderBatchBar(){
         + state.batches.map(b => `
         <button onclick="setBatch('${b.id}')" ondblclick="renameBatch('${b.id}')"
             draggable="true" ondragstart="batchDragStart(event,'${b.id}')" ondragover="batchDragOver(event)" ondrop="batchDrop(event,'${b.id}')"
-            class="px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-grab active:cursor-grabbing ${b.id===activeBatchId?'btn-primary':'btn-ghost t-muted hover:text-white'}">
-            ${esc(b.name)}
+            title="${b.shareSettled?'Profit distributed / settled':''}"
+            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-grab active:cursor-grabbing ${b.id===activeBatchId?'btn-primary':'btn-ghost t-muted hover:text-white'}">
+            ${esc(b.name)}${b.shareSettled?`<span style="color:${b.id===activeBatchId?'#fff':COLOR.gold}">${ic('badge-check','w-3.5 h-3.5')}</span>`:''}
         </button>`).join('')
         + `<button onclick="addBatch()" class="edit-only inline-flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-bold t-coral btn-ghost hover:text-white transition">${ic('plus','w-4 h-4')} Batch</button>`;
 }
@@ -933,18 +934,27 @@ function viewShare(){
             <span class="text-white/80">${name}</span>
             <span id="res-${cssId(name)}" class="font-bold text-white num">Rs 0</span>
         </div>`).join('');
+    const settled = !!b.shareSettled;
+    const settledBadge = settled
+        ? `<span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">${ic('badge-check','w-3.5 h-3.5')} Distributed${b.settledAt?` · ${esc(b.settledAt)}`:''}</span>`
+        : '';
+    const settleBtn = settled
+        ? `<button onclick="toggleShareSettled()" class="edit-only btn-ghost px-4 py-2.5 rounded-xl font-semibold text-sm whitespace-nowrap inline-flex items-center gap-1.5 text-white/80 hover:text-white">${ic('rotate-ccw','w-4 h-4')} Reopen</button>`
+        : `<button onclick="toggleShareSettled()" class="edit-only btn-ghost px-4 py-2.5 rounded-xl font-semibold text-sm whitespace-nowrap inline-flex items-center gap-1.5 t-gold hover:text-white">${ic('badge-check','w-4 h-4')} Mark settled</button>`;
     return `
-    <div class="glass rounded-3xl p-6 md:p-8">
+    <div class="glass rounded-3xl p-6 md:p-8 ${settled?'relative overflow-hidden':''}">
+        ${settled ? `<div class="absolute -right-16 top-7 rotate-45 text-center pointer-events-none" style="width:220px;background:${COLOR.gold}26;border:1px solid ${COLOR.gold}55"><span class="text-xs font-extrabold tracking-widest uppercase" style="color:${COLOR.gold}">Distributed</span></div>` : ''}
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
-                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Profit Distribution</h2>
+                <h2 class="text-xl font-bold text-white flex items-center gap-2 flex-wrap">${esc(b.name)} — Profit Distribution ${settledBadge}</h2>
                 <p class="t-muted text-sm">Owner 40% · Future fund 36% · Team pool 24% (service lead earns 12%).</p>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
                 <div class="text-right">
                     <p class="text-xs t-muted">Net distributable</p>
                     <p class="text-lg font-extrabold t-gold num">${money(d.total)}</p>
                 </div>
+                ${settleBtn}
                 <button onclick="downloadShareReport()" class="edit-only btn-primary px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap inline-flex items-center gap-1.5">${ic('download','w-4 h-4')} Download report</button>
             </div>
         </div>
@@ -960,7 +970,8 @@ function viewShare(){
                 <p class="text-xs t-muted mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
             </div>
-            <div class="rounded-2xl p-6 text-white" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid var(--stroke)">
+            <div class="rounded-2xl p-6 text-white relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${settled?COLOR.gold+'66':'var(--stroke)'}">
+                ${settled ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="rotate-[-12deg] px-6 py-2 rounded-xl text-lg font-extrabold uppercase tracking-widest" style="color:${COLOR.gold};border:3px solid ${COLOR.gold}88;background:${COLOR.gold}12">Settled</span></div>` : ''}
                 <div class="flex items-center justify-between mb-5">
                     <h3 class="text-lg font-bold">Distribution</h3>
                     <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">Total <span id="share-total" class="num">Rs 0</span></span>
@@ -976,6 +987,13 @@ function viewShare(){
     </div>`;
 }
 function SHARE_LEAD_BY_NAME(name){ return Object.values(SHARE_LEAD).includes(name); }
+window.toggleShareSettled = () => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const b = activeBatch();
+    b.shareSettled = !b.shareSettled;
+    b.settledAt = b.shareSettled ? new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
+    save(); render();
+};
 
 /* ---------- Downloadable profit-share report (admin/owner) ---------- */
 window.downloadShareReport = () => {
