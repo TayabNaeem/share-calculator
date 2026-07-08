@@ -795,19 +795,22 @@ function sumRow(label, val, color, big){
         <span class="num font-${big?'extrabold text-xl':'bold text-base'}" style="color:${color}">${val}</span></div>`;
 }
 function viewSummary(){
-    let gRec=0,gPen=0,gRef=0,gPrev=0;
+    let gRec=0,gPen=0,gRef=0,gPrev=0,gPrevPen=0;
     const batchRows = state.batches.map(b => {
         const rec=b.students.reduce((a,s)=>a+num(s.feePaid),0);
         const pen=b.students.reduce((a,s)=>a+num(s.feePending),0);
-        const ref=batchRefundTotal(b), prev=batchPrevReceived(b);
-        gRec+=rec; gPen+=pen; gRef+=ref; gPrev+=prev;
+        const ref=batchRefundTotal(b);
+        const pRec=batchPrevReceived(b), pPen=batchPrevPending(b);
+        gRec+=rec; gPen+=pen; gRef+=ref; gPrev+=pRec; gPrevPen+=pPen;
         return `<tr>
             <td class="font-semibold text-white">${esc(b.name)}</td>
             <td class="text-right num t-muted">${b.students.length}</td>
-            <td class="text-right num t-coral">${money(pen)}</td>
             <td class="text-right num t-gold">${money(rec)}</td>
-            <td class="text-right num t-coral">${money(ref)}</td>
-            <td class="text-right num text-white font-bold">${money(rec+pen)}</td>
+            <td class="text-right num ${pen>0?'t-coral':'t-muted'}">${money(pen)}</td>
+            <td class="text-right num ${pRec>0?'t-gold':'t-muted'}">${money(pRec)}</td>
+            <td class="text-right num ${pPen>0?'t-coral':'t-muted'}">${money(pPen)}</td>
+            <td class="text-right num ${ref>0?'t-coral':'t-muted'}">${money(ref)}</td>
+            <td class="text-right num text-white font-bold">${money(rec+pen+pRec+pPen)}</td>
         </tr>`;
     }).join('');
 
@@ -839,18 +842,6 @@ function viewSummary(){
         </div>`;
     }).join('');
 
-    // Previous-batch carry-forward payments (received + pending) per batch
-    const gPrevPen = state.batches.reduce((a,b)=>a+batchPrevPending(b),0);
-    const prevData = state.batches
-        .map(b => ({ b, rec: batchPrevReceived(b), pen: batchPrevPending(b) }))
-        .filter(x => x.rec > 0 || x.pen > 0);
-    const prevRows = prevData.map(x => `<tr>
-        <td class="font-semibold text-white">${esc(x.b.name)}</td>
-        <td class="text-right num t-gold">${money(x.rec)}</td>
-        <td class="text-right num ${x.pen>0?'t-coral':'t-muted'}">${money(x.pen)}</td>
-        <td class="text-right num text-white font-bold">${money(x.rec+x.pen)}</td>
-    </tr>`).join('');
-
     return `
     <div class="space-y-5">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -876,34 +867,26 @@ function viewSummary(){
             </div>
         </div>
         <div class="glass rounded-3xl p-6 md:p-8">
-            <h2 class="text-lg font-bold text-white mb-4">Batch Summary</h2>
+            <h2 class="text-lg font-bold text-white mb-1">Batch Summary</h2>
+            <p class="t-muted text-sm mb-4">Each batch's own figures — its students plus its previous-batch carry-forward — kept separate per batch.</p>
             <div class="overflow-x-auto">
-            <table class="tbl w-full text-sm">
-                <thead><tr><th>Batch</th><th class="text-right">Students</th><th class="text-right">Pending</th><th class="text-right">Received</th><th class="text-right">Refunded</th><th class="text-right">Total</th></tr></thead>
+            <table class="tbl w-full text-sm whitespace-nowrap">
+                <thead><tr>
+                    <th>Batch</th><th class="text-right">Students</th>
+                    <th class="text-right">Received</th><th class="text-right">Pending</th>
+                    <th class="text-right">Prev. Received</th><th class="text-right">Prev. Pending</th>
+                    <th class="text-right">Refunded</th><th class="text-right">Total</th>
+                </tr></thead>
                 <tbody>${batchRows}</tbody>
                 <tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
                     <td>All batches</td><td class="text-right num t-muted">${all.length}</td>
-                    <td class="text-right num t-coral">${money(gPen)}</td>
                     <td class="text-right num t-gold">${money(gRec)}</td>
-                    <td class="text-right num t-coral">${money(gRef)}</td>
-                    <td class="text-right num">${money(gRec+gPen)}</td>
-                </tr></tfoot>
-            </table>
-            </div>
-        </div>
-        <div class="glass rounded-3xl p-6 md:p-8">
-            <h2 class="text-lg font-bold text-white mb-1">Previous Batch Payments</h2>
-            <p class="t-muted text-sm mb-4">Carry-forward payments recorded per batch (from the <button onclick="setTab('previous')" class="t-coral font-semibold">Previous Batch</button> tab).</p>
-            <div class="overflow-x-auto">
-            <table class="tbl w-full text-sm">
-                <thead><tr><th>Batch</th><th class="text-right">Received</th><th class="text-right">Pending</th><th class="text-right">Total</th></tr></thead>
-                <tbody>${prevRows || `<tr><td colspan="4" class="text-center t-muted py-6">No previous-batch payments recorded yet.</td></tr>`}</tbody>
-                ${prevData.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
-                    <td>All batches</td>
+                    <td class="text-right num t-coral">${money(gPen)}</td>
                     <td class="text-right num t-gold">${money(gPrev)}</td>
                     <td class="text-right num t-coral">${money(gPrevPen)}</td>
-                    <td class="text-right num">${money(gPrev+gPrevPen)}</td>
-                </tr></tfoot>`:''}
+                    <td class="text-right num t-coral">${money(gRef)}</td>
+                    <td class="text-right num">${money(gRec+gPen+gPrev+gPrevPen)}</td>
+                </tr></tfoot>
             </table>
             </div>
         </div>
