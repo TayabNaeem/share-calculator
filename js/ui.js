@@ -75,6 +75,7 @@ function render(){
     const c = document.getElementById('tab-content');
     c.classList.remove('fade-in'); void c.offsetWidth; c.classList.add('fade-in');
     if (activeTab === 'students')          c.innerHTML = viewStudents();
+    else if (activeTab === 'oneonone')     c.innerHTML = viewOneOnOne();
     else if (activeTab === 'installments') c.innerHTML = viewInstallments();
     else if (activeTab === 'pending')      c.innerHTML = viewPending();
     else if (activeTab === 'breakdown')    c.innerHTML = viewBreakdown();
@@ -142,7 +143,7 @@ function viewStudents(){
         return `
         <tr>
             <td class="t-muted num">${i+1}</td>
-            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
             <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
             <td>${bundleBadge(s.bundleType)}</td>
             <td class="text-white/85">${esc(programLabel(s))}</td>
@@ -260,8 +261,15 @@ function tabModal(title, bodyHtml){
 window.openStudentModal = (id) => {
     const b = activeBatch();
     const editing = id ? b.students.find(x=>x.id===id) : null;
-    const s = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], feePaid:'', feePending:'', name:'', contact:'', date:'' };
+    const s = editing ? JSON.parse(JSON.stringify(editing)) : { sessionType:'batch', bundleType:'single', courses:[], feePaid:'', feePending:'', name:'', contact:'', date:'' };
+    const st = s.sessionType === '1on1' ? '1on1' : 'batch';
+    const sBtn = (val,label) => `<button type="button" data-session="${val}" onclick="setSessionType('${val}')" class="session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${st===val?'btn-primary':'btn-ghost t-muted hover:text-white'}">${label}</button>`;
     tabModal(`${editing?'Edit':'Add'} Student · <span class="t-coral">${esc(b.name)}</span>`, `
+        <div class="mb-4">
+            <label class="text-xs font-semibold t-muted">Session type</label>
+            <input type="hidden" id="m-session" value="${st}">
+            <div class="grid grid-cols-2 gap-2 mt-1">${sBtn('batch','Normal Batch')}${sBtn('1on1','1-on-1 Training')}</div>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="text-xs font-semibold t-muted">Name</label><input id="m-name" class="field mt-1" value="${esc(s.name)}" placeholder="Student name"></div>
             <div><label class="text-xs font-semibold t-muted">Contact</label><input id="m-contact" class="field mt-1" value="${esc(s.contact)}" placeholder="03xx xxxxxxx"></div>
@@ -281,12 +289,20 @@ window.openStudentModal = (id) => {
             <button onclick="saveStudent('${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add student'}</button>
         </div>`);
 };
+window.setSessionType = (val) => {
+    document.getElementById('m-session').value = val;
+    document.querySelectorAll('.session-btn').forEach(b => {
+        const on = b.dataset.session === val;
+        b.className = `session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${on?'btn-primary':'btn-ghost t-muted hover:text-white'}`;
+    });
+};
 window.saveStudent = (id) => {
     const b = activeBatch();
     const courses = [...document.querySelectorAll('.course-chk')].filter(c=>c.checked).map(c=>c.value);
     const data = {
         name: document.getElementById('m-name').value.trim(),
         contact: document.getElementById('m-contact').value.trim(),
+        sessionType: document.getElementById('m-session').value === '1on1' ? '1on1' : 'batch',
         bundleType: document.getElementById('m-bundle').value,
         courses,
         date: document.getElementById('m-date').value.trim(),
@@ -298,6 +314,60 @@ window.saveStudent = (id) => {
     else b.students.push(normalizeStudent({ ...data, installments: [] }));
     save(); closeModal(); render();
 };
+
+/* =====================================================================
+   TAB: 1-ON-1 TRAINING (all batches, sessionType === '1on1')
+   ===================================================================== */
+window.editStudentFrom = (bid, sid) => { activeBatchId = bid; openStudentModal(sid); };
+window.deleteStudentFrom = (bid, sid) => {
+    const b = state.batches.find(x=>x.id===bid); if (!b) return;
+    const s = b.students.find(x=>x.id===sid);
+    if (!confirm(`Remove ${s?.name||'this student'}?`)) return;
+    b.students = b.students.filter(x=>x.id!==sid); save(); render();
+};
+function viewOneOnOne(){
+    const list = [];
+    state.batches.forEach(b => b.students.forEach(s => { if (s.sessionType === '1on1') list.push({ b, s }); }));
+    const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
+    const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
+    const rows = list.map(({b,s}) => {
+        const total = num(s.feePaid)+num(s.feePending);
+        const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
+        return `
+        <tr>
+            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
+            <td><span class="badge glass text-white/80">${esc(b.name)}</span></td>
+            <td>${bundleBadge(s.bundleType)}</td>
+            <td class="text-white/85">${esc(programLabel(s))}</td>
+            <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
+            <td class="text-right num ${num(s.feePending)>0?'t-coral':'t-muted'} font-semibold">${money(s.feePending)}</td>
+            <td class="min-w-[120px]">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
+                    <span class="text-xs t-muted num">${pct}%</span>
+                </div>
+            </td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="editStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="deleteStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
+            </td>
+        </tr>`;
+    }).join('');
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="mb-6">
+            <h2 class="text-xl font-bold text-white">1-on-1 Training</h2>
+            <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches) · <span class="t-gold">${money(rec)}</span> received · <span class="t-coral">${money(pen)}</span> pending</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('user-round','w-8 h-8 text-[#FFCD57]')}<span>No 1-on-1 students yet. Add a student and set <b class="t-coral">Session type → 1-on-1</b>.</span></div></td></tr>`}</tbody>
+            </table>
+        </div>
+    </div>`;
+}
 
 /* =====================================================================
    TAB: INSTALLMENTS
