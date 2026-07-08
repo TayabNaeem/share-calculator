@@ -839,6 +839,18 @@ function viewSummary(){
         </div>`;
     }).join('');
 
+    // Previous-batch carry-forward payments (received + pending) per batch
+    const gPrevPen = state.batches.reduce((a,b)=>a+batchPrevPending(b),0);
+    const prevData = state.batches
+        .map(b => ({ b, rec: batchPrevReceived(b), pen: batchPrevPending(b) }))
+        .filter(x => x.rec > 0 || x.pen > 0);
+    const prevRows = prevData.map(x => `<tr>
+        <td class="font-semibold text-white">${esc(x.b.name)}</td>
+        <td class="text-right num t-gold">${money(x.rec)}</td>
+        <td class="text-right num ${x.pen>0?'t-coral':'t-muted'}">${money(x.pen)}</td>
+        <td class="text-right num text-white font-bold">${money(x.rec+x.pen)}</td>
+    </tr>`).join('');
+
     return `
     <div class="space-y-5">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -857,7 +869,8 @@ function viewSummary(){
                     ${sumRow('Received', money(gRec), COLOR.gold)}
                     ${sumRow('Pending', money(gPen), COLOR.coral)}
                     ${sumRow('Refunded', money(gRef), COLOR.coral)}
-                    ${sumRow('Prev. carried', money(gPrev), COLOR.gold)}
+                    ${sumRow('Prev. received', money(gPrev), COLOR.gold)}
+                    ${sumRow('Prev. pending', money(gPrevPen), COLOR.coral)}
                     <div class="border-t border-white/10 pt-3">${sumRow('Grand total (rec+pend)', money(gRec+gPen), COLOR.gold, true)}</div>
                 </div>
             </div>
@@ -875,6 +888,22 @@ function viewSummary(){
                     <td class="text-right num t-coral">${money(gRef)}</td>
                     <td class="text-right num">${money(gRec+gPen)}</td>
                 </tr></tfoot>
+            </table>
+            </div>
+        </div>
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <h2 class="text-lg font-bold text-white mb-1">Previous Batch Payments</h2>
+            <p class="t-muted text-sm mb-4">Carry-forward payments recorded per batch (from the <button onclick="setTab('previous')" class="t-coral font-semibold">Previous Batch</button> tab).</p>
+            <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Batch</th><th class="text-right">Received</th><th class="text-right">Pending</th><th class="text-right">Total</th></tr></thead>
+                <tbody>${prevRows || `<tr><td colspan="4" class="text-center t-muted py-6">No previous-batch payments recorded yet.</td></tr>`}</tbody>
+                ${prevData.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
+                    <td>All batches</td>
+                    <td class="text-right num t-gold">${money(gPrev)}</td>
+                    <td class="text-right num t-coral">${money(gPrevPen)}</td>
+                    <td class="text-right num">${money(gPrev+gPrevPen)}</td>
+                </tr></tfoot>`:''}
             </table>
             </div>
         </div>
