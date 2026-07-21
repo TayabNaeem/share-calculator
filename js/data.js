@@ -64,6 +64,7 @@ function normalizeStudent(s){
         id: s.id || ('s'+Math.random().toString(36).slice(2)),
         name: s.name||'', contact: s.contact||'',
         sessionType: s.sessionType === '1on1' ? '1on1' : 'batch',
+        mode: s.mode === 'physical' ? 'physical' : 'online',
         bundleType: s.bundleType || 'single',
         courses: Array.isArray(s.courses) ? s.courses : [],
         feePaid: num(s.feePaid), feePending: num(s.feePending),
