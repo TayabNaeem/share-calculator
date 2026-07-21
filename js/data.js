@@ -12,6 +12,7 @@ function seedState(){
     return {
         companyName: 'Skillmentor.pk',
         logo: '',
+        favicon: '',
         batches: [
             { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' },
             { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' },

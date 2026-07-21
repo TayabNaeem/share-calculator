@@ -65,6 +65,13 @@ function applyBranding(){
         else logoEl.innerText = (name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2) || 'SM').toUpperCase();
     }
     document.title = `${name} — Revenue & Profit Dashboard`;
+    // Favicon: use the uploaded favicon, else fall back to the logo, else leave as-is
+    const fav = (state && (state.favicon || state.logo)) || '';
+    if (fav) {
+        let link = document.getElementById('favicon');
+        if (!link) { link = document.createElement('link'); link.id = 'favicon'; link.rel = 'icon'; document.head.appendChild(link); }
+        link.href = fav;
+    }
 }
 function render(){
     if (!state) return;
@@ -1062,7 +1069,7 @@ window.downloadShareReport = () => {
 /* =====================================================================
    COMPANY PROFILE (owner) — name + logo
    ===================================================================== */
-let pendingLogo = null;
+let pendingLogo = null, pendingFavicon = null;
 window.openBatchModal = () => {
     const b = activeBatch();
     document.getElementById('modal-root').innerHTML = `
@@ -1088,9 +1095,10 @@ window.saveBatchName = () => {
 window.openCompanyProfile = () => {
     document.getElementById('profile-menu').classList.add('hidden-view');
     if (window.__getRole && window.__getRole() !== 'owner') return;
-    pendingLogo = null;
+    pendingLogo = null; pendingFavicon = null;
     const name = (state && state.companyName) || 'Skillmentor.pk';
     const logo = (state && state.logo) || '';
+    const favicon = (state && state.favicon) || '';
     const preview = logo
         ? `<img id="cp-preview" src="${logo}" class="w-full h-full object-cover">`
         : `<span id="cp-preview" class="text-white font-black text-lg">${esc((name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2)||'SM').toUpperCase())}</span>`;
@@ -1106,6 +1114,16 @@ window.openCompanyProfile = () => {
                     </label>
                     ${logo ? `<button onclick="removeLogo()" class="ml-2 text-xs t-coral hover:brightness-125 font-semibold">Remove</button>` : ``}
                     <p class="text-xs t-muted mt-1">PNG/JPG, square works best.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 mb-5">
+                <div id="cp-fav-box" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 border border-white/10" style="background:rgba(255,255,255,0.05)">${favicon?`<img id="cp-fav-preview" src="${favicon}" class="w-8 h-8 object-contain">`:`<span id="cp-fav-preview" class="t-muted">${ic('image','w-6 h-6')}</span>`}</div>
+                <div class="flex-1">
+                    <label class="btn-ghost inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm cursor-pointer text-white/85">${ic('upload','w-4 h-4')} Upload favicon
+                        <input type="file" accept="image/*" class="hidden" onchange="handleFaviconPick(event)">
+                    </label>
+                    ${favicon ? `<button onclick="removeFavicon()" class="ml-2 text-xs t-coral hover:brightness-125 font-semibold">Remove</button>` : ``}
+                    <p class="text-xs t-muted mt-1">Browser-tab icon. Square PNG works best.</p>
                 </div>
             </div>
             <label class="text-xs font-semibold t-muted">Company name</label>
@@ -1139,11 +1157,31 @@ window.handleLogoPick = (ev) => {
     reader.readAsDataURL(file);
 };
 window.removeLogo = () => { pendingLogo = ''; state.logo = ''; save(); render(); openCompanyProfile(); };
+window.handleFaviconPick = (ev) => {
+    const file = ev.target.files && ev.target.files[0]; if (!file) return;
+    if (!file.type.startsWith('image/')) { document.getElementById('cp-err').innerText = "Please choose an image file."; return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const size = 64;
+            const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            canvas.getContext('2d').drawImage(img, 0, 0, size, size);
+            pendingFavicon = canvas.toDataURL('image/png');
+            const box = document.getElementById('cp-fav-box');
+            if (box) box.innerHTML = `<img src="${pendingFavicon}" class="w-8 h-8 object-contain">`;
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+window.removeFavicon = () => { pendingFavicon = ''; state.favicon = ''; save(); render(); openCompanyProfile(); };
 window.saveCompanyProfile = () => {
     const name = document.getElementById('cp-name').value.trim();
     if (!name) { document.getElementById('cp-err').innerText = "Enter a company name."; return; }
     state.companyName = name;
     if (pendingLogo !== null) state.logo = pendingLogo;
+    if (pendingFavicon !== null) state.favicon = pendingFavicon;
     save(); closeModal(); render();
 };
 
