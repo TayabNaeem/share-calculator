@@ -157,9 +157,9 @@ function viewStudents(){
         return `
         <tr>
             <td class="t-muted num">${i+1}</td>
-            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
+            <td class="font-semibold text-white whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
             <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
-            <td>${bundleBadge(s.bundleType)}</td>
+            <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-white/85">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
             <td class="text-right num ${onInst?'t-coral':'t-muted'} font-semibold">${money(s.feePending)}</td>
@@ -413,10 +413,10 @@ function viewPhysical(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
         <tr>
-            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
+            <td class="font-semibold text-white whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
             <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-white/80">${esc(b.name)}</span></td>
-            <td>${bundleBadge(s.bundleType)}</td>
+            <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-white/85">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
             <td class="text-right num ${num(s.feePending)>0?'t-coral':'t-muted'} font-semibold">${money(s.feePending)}</td>
