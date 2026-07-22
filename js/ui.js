@@ -987,11 +987,14 @@ function viewSummary(){
 function cssId(name){ return name.replace(/\s+/g,'_'); }
 function wireShare(){ computeShare(); }
 function computeShare(){
-    const d = shareBreakdown(activeBatch());
-    setTxt('owner-val', money(d.owner));
-    setTxt('future-val', money(d.future));
+    const b = activeBatch();
+    const d = shareBreakdown(b);
+    const pct = num(b.settledPct);
+    const rem = (amt) => amt * (100 - pct) / 100;   // remaining after settlement
+    setTxt('owner-val', money(rem(d.owner)));
+    setTxt('future-val', money(rem(d.future)));
     setTxt('share-total', money(d.total));
-    TEAM.forEach(n => setTxt('res-'+cssId(n), money(d.team[n])));
+    TEAM.forEach(n => setTxt('res-'+cssId(n), money(rem(d.team[n]))));
 }
 function setTxt(id,v){ const e=document.getElementById(id); if(e) e.innerText=v; }
 function viewShare(){
@@ -1008,12 +1011,14 @@ function viewShare(){
         </div>`).join('');
     const pct = num(b.settledPct);
     const fully = pct >= 100;
+    const rem = (amt) => amt * (100 - pct) / 100;   // remaining to pay out
     const settledSub = (amt) => pct>0 ? `<div class="text-[11px] t-gold num">settled ${money(amt*pct/100)}</div>` : '';
+    const remLabel = pct>0 ? `<span class="text-[10px] t-muted uppercase ml-1">left</span>` : '';
     const teamRows = TEAM.map(name => `
         <div class="flex justify-between items-center bg-white/5 px-4 py-2.5 rounded-xl text-sm">
             <span class="text-white/80">${name}</span>
             <div class="text-right leading-tight">
-                <span id="res-${cssId(name)}" class="font-bold text-white num">${money(d.team[name])}</span>
+                <span id="res-${cssId(name)}" class="font-bold text-white num">${money(rem(d.team[name]))}</span>${remLabel}
                 ${settledSub(d.team[name])}
             </div>
         </div>`).join('');
@@ -1024,12 +1029,23 @@ function viewShare(){
         <div class="edit-only mb-4 relative z-20">
             <div class="flex items-center justify-between mb-2">
                 <p class="text-xs font-semibold t-muted uppercase tracking-wide">Settle each share</p>
-                ${pct>0?`<p class="text-xs t-gold num">${money(d.total*pct/100)} / ${money(d.total)}${b.settledAt?` · ${esc(b.settledAt)}`:''}</p>`:''}
+                ${pct>0 && b.settledAt?`<p class="text-xs t-muted">${esc(b.settledAt)}</p>`:''}
             </div>
             <div class="grid grid-cols-5 gap-1.5">
                 ${[0,25,50,75,100].map(p=>`<button onclick="setSettledPct(${p})" class="px-2 py-1.5 rounded-lg text-xs font-bold transition ${pct===p?'btn-primary':'btn-ghost t-muted hover:text-white'}">${p===0?'None':p+'%'}</button>`).join('')}
             </div>
         </div>`;
+    const settledSummary = pct>0 ? `
+        <div class="flex items-end justify-between mb-4 pb-4 border-b border-white/10 relative z-20">
+            <div>
+                <p class="text-[11px] t-muted uppercase tracking-wide">Settled altogether (${pct}%)</p>
+                <p class="text-3xl font-extrabold t-gold num leading-none mt-1">${money(d.total*pct/100)}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[11px] t-muted uppercase tracking-wide">Remaining</p>
+                <p class="text-xl font-bold text-white num mt-1">${money(rem(d.total))}</p>
+            </div>
+        </div>` : '';
     return `
     <div class="glass rounded-3xl p-6 md:p-8 ${fully?'relative overflow-hidden':''}">
         ${fully ? `<div class="absolute -right-16 top-7 rotate-45 text-center pointer-events-none" style="width:220px;background:${COLOR.gold}26;border:1px solid ${COLOR.gold}55"><span class="text-xs font-extrabold tracking-widest uppercase" style="color:${COLOR.gold}">Distributed</span></div>` : ''}
@@ -1065,9 +1081,10 @@ function viewShare(){
                     <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">Total <span id="share-total" class="num">Rs 0</span></span>
                 </div>
                 ${settleControl}
+                ${settledSummary}
                 <div class="space-y-3">
-                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${settledSub(d.owner)}</div></div>
-                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${settledSub(d.future)}</div></div>
+                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${remLabel}${settledSub(d.owner)}</div></div>
+                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${remLabel}${settledSub(d.future)}</div></div>
                     <p class="text-xs t-muted pt-2 pb-1">Team pool (24%)</p>
                     ${teamRows}
                 </div>
