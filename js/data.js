@@ -14,8 +14,8 @@ function seedState(){
         logo: '',
         favicon: '',
         batches: [
-            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' },
-            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' },
+            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' },
+            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' },
         ],
         activeBatchId: id,
     };
@@ -49,6 +49,7 @@ window.__loadState = (incoming) => {
                 previous, refunds, pending,
                 share: b.share || {},
                 shareSettled: !!b.shareSettled,
+                settledPct: (b.settledPct != null ? num(b.settledPct) : (b.shareSettled ? 100 : 0)),
                 settledAt: b.settledAt || '',
             };
         });

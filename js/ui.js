@@ -18,7 +18,7 @@ window.refreshIcons = refreshIcons;
 window.setTab = (t) => { activeTab = t; render(); };
 window.setBatch = (id) => { activeBatchId = id; save(); render(); };
 function nextBatchNum(){ return Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1; }
-function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledAt:'' }; }
+function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' }; }
 window.addBatch = () => {
     const b = makeBatch(`Batch ${nextBatchNum()}`);
     state.batches.push(b); activeBatchId = b.id; save(); render();
@@ -1006,21 +1006,33 @@ function viewShare(){
                 <span class="num font-bold ${per[c.id]>0?'text-white':(per[c.id]<0?'t-coral':'t-muted')}">${Math.round(per[c.id]).toLocaleString()}</span>
             </div>
         </div>`).join('');
+    const pct = num(b.settledPct);
+    const fully = pct >= 100;
+    const settledSub = (amt) => pct>0 ? `<div class="text-[11px] t-gold num">settled ${money(amt*pct/100)}</div>` : '';
     const teamRows = TEAM.map(name => `
         <div class="flex justify-between items-center bg-white/5 px-4 py-2.5 rounded-xl text-sm">
             <span class="text-white/80">${name}</span>
-            <span id="res-${cssId(name)}" class="font-bold text-white num">Rs 0</span>
+            <div class="text-right leading-tight">
+                <span id="res-${cssId(name)}" class="font-bold text-white num">${money(d.team[name])}</span>
+                ${settledSub(d.team[name])}
+            </div>
         </div>`).join('');
-    const settled = !!b.shareSettled;
-    const settledBadge = settled
+    const settledBadge = fully
         ? `<span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">${ic('badge-check','w-3.5 h-3.5')} Distributed${b.settledAt?` · ${esc(b.settledAt)}`:''}</span>`
-        : '';
-    const settleBtn = settled
-        ? `<button onclick="toggleShareSettled()" class="edit-only btn-ghost px-4 py-2.5 rounded-xl font-semibold text-sm whitespace-nowrap inline-flex items-center gap-1.5 text-white/80 hover:text-white">${ic('rotate-ccw','w-4 h-4')} Reopen</button>`
-        : `<button onclick="toggleShareSettled()" class="edit-only btn-ghost px-4 py-2.5 rounded-xl font-semibold text-sm whitespace-nowrap inline-flex items-center gap-1.5 t-gold hover:text-white">${ic('badge-check','w-4 h-4')} Mark settled</button>`;
+        : (pct>0 ? `<span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">${ic('badge-check','w-3.5 h-3.5')} ${pct}% settled</span>` : '');
+    const settleControl = `
+        <div class="edit-only mb-4 relative z-20">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-semibold t-muted uppercase tracking-wide">Settle each share</p>
+                ${pct>0?`<p class="text-xs t-gold num">${money(d.total*pct/100)} / ${money(d.total)}${b.settledAt?` · ${esc(b.settledAt)}`:''}</p>`:''}
+            </div>
+            <div class="grid grid-cols-5 gap-1.5">
+                ${[0,25,50,75,100].map(p=>`<button onclick="setSettledPct(${p})" class="px-2 py-1.5 rounded-lg text-xs font-bold transition ${pct===p?'btn-primary':'btn-ghost t-muted hover:text-white'}">${p===0?'None':p+'%'}</button>`).join('')}
+            </div>
+        </div>`;
     return `
-    <div class="glass rounded-3xl p-6 md:p-8 ${settled?'relative overflow-hidden':''}">
-        ${settled ? `<div class="absolute -right-16 top-7 rotate-45 text-center pointer-events-none" style="width:220px;background:${COLOR.gold}26;border:1px solid ${COLOR.gold}55"><span class="text-xs font-extrabold tracking-widest uppercase" style="color:${COLOR.gold}">Distributed</span></div>` : ''}
+    <div class="glass rounded-3xl p-6 md:p-8 ${fully?'relative overflow-hidden':''}">
+        ${fully ? `<div class="absolute -right-16 top-7 rotate-45 text-center pointer-events-none" style="width:220px;background:${COLOR.gold}26;border:1px solid ${COLOR.gold}55"><span class="text-xs font-extrabold tracking-widest uppercase" style="color:${COLOR.gold}">Distributed</span></div>` : ''}
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
                 <h2 class="text-xl font-bold text-white flex items-center gap-2 flex-wrap">${esc(b.name)} — Profit Distribution ${settledBadge}</h2>
@@ -1031,7 +1043,6 @@ function viewShare(){
                     <p class="text-xs t-muted">Net distributable</p>
                     <p class="text-lg font-extrabold t-gold num">${money(d.total)}</p>
                 </div>
-                ${settleBtn}
                 <button onclick="downloadShareReport()" class="edit-only btn-primary px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap inline-flex items-center gap-1.5">${ic('download','w-4 h-4')} Download report</button>
             </div>
         </div>
@@ -1047,15 +1058,16 @@ function viewShare(){
                 <p class="text-xs t-muted mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
             </div>
-            <div class="rounded-2xl p-6 text-white relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${settled?COLOR.gold+'66':'var(--stroke)'}">
-                ${settled ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="rotate-[-12deg] px-6 py-2 rounded-xl text-lg font-extrabold uppercase tracking-widest" style="color:${COLOR.gold};border:3px solid ${COLOR.gold}88;background:${COLOR.gold}12">Settled</span></div>` : ''}
+            <div class="rounded-2xl p-6 text-white relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${pct>0?COLOR.gold+'66':'var(--stroke)'}">
+                ${fully ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="rotate-[-12deg] px-6 py-2 rounded-xl text-lg font-extrabold uppercase tracking-widest" style="color:${COLOR.gold};border:3px solid ${COLOR.gold}88;background:${COLOR.gold}12">Settled</span></div>` : ''}
                 <div class="flex items-center justify-between mb-5">
                     <h3 class="text-lg font-bold">Distribution</h3>
                     <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">Total <span id="share-total" class="num">Rs 0</span></span>
                 </div>
+                ${settleControl}
                 <div class="space-y-3">
-                    <div class="flex justify-between border-b border-white/10 pb-3"><span class="t-muted">Owner (40%)</span><span id="owner-val" class="font-bold t-gold num">Rs 0</span></div>
-                    <div class="flex justify-between border-b border-white/10 pb-3"><span class="t-muted">Future Fund (36%)</span><span id="future-val" class="font-bold t-coral num">Rs 0</span></div>
+                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${settledSub(d.owner)}</div></div>
+                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${settledSub(d.future)}</div></div>
                     <p class="text-xs t-muted pt-2 pb-1">Team pool (24%)</p>
                     ${teamRows}
                 </div>
@@ -1064,11 +1076,12 @@ function viewShare(){
     </div>`;
 }
 function SHARE_LEAD_BY_NAME(name){ return Object.values(SHARE_LEAD).includes(name); }
-window.toggleShareSettled = () => {
+window.setSettledPct = (pct) => {
     if (window.__getRole && window.__getRole() === 'viewer') return;
     const b = activeBatch();
-    b.shareSettled = !b.shareSettled;
-    b.settledAt = b.shareSettled ? new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
+    b.settledPct = pct;
+    b.shareSettled = pct >= 100;
+    b.settledAt = pct > 0 ? new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
     save(); render();
 };
 
