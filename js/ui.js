@@ -85,12 +85,10 @@ function render(){
     else if (activeTab === 'oneonone')     c.innerHTML = viewOneOnOne();
     else if (activeTab === 'physical')     c.innerHTML = viewPhysical();
     else if (activeTab === 'installments') c.innerHTML = viewInstallments();
-    else if (activeTab === 'pending')      c.innerHTML = viewPending();
     else if (activeTab === 'breakdown')    c.innerHTML = viewBreakdown();
     else if (activeTab === 'previous')     c.innerHTML = viewPrevious();
     else if (activeTab === 'refunds')      c.innerHTML = viewRefunds();
     else if (activeTab === 'futurefund')   c.innerHTML = viewFutureFund();
-    else if (activeTab === 'otherpayments')c.innerHTML = viewOtherPayments();
     else if (activeTab === 'summary')      c.innerHTML = viewSummary();
     else if (activeTab === 'share')      { c.innerHTML = viewShare(); wireShare(); }
     refreshIcons();
@@ -98,7 +96,7 @@ function render(){
 
 function renderBatchBar(){
     const bar = document.getElementById('batch-bar');
-    const batchScoped = ['students','pending','breakdown','previous','refunds','share'].includes(activeTab);
+    const batchScoped = ['students','breakdown','previous','refunds','share'].includes(activeTab);
     if (!batchScoped) { bar.innerHTML = ''; bar.classList.add('hidden-view'); return; }
     bar.classList.remove('hidden-view');
     bar.innerHTML = `<span class="text-[11px] font-bold uppercase tracking-wider t-muted mr-1 hidden sm:inline" title="Drag a batch to reorder">Batch</span>`
@@ -136,6 +134,13 @@ function miniStat(label, val, color){
     return `<div class="rounded-xl p-4" style="background:${color}14;border:1px solid ${color}33">
         <p class="text-xs font-semibold" style="color:${color}">${label}</p>
         <p class="text-lg font-extrabold text-white num mt-0.5">${val}</p></div>`;
+}
+function rpSummary(count, countLabel, rec, pen){
+    return `<div class="grid grid-cols-3 gap-3 mb-6">
+        ${miniStat(countLabel, String(count), COLOR.white)}
+        ${miniStat('Total Received', money(rec), COLOR.gold)}
+        ${miniStat('Total Pending', money(pen), COLOR.coral)}
+    </div>`;
 }
 function bundleBadge(type){
     const a = BUNDLE[type]?.accent || COLOR.white;
@@ -192,6 +197,7 @@ function viewStudents(){
                 <button onclick="openStudentModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('user-plus','w-4 h-4')} Add Student</button>
             </div>
         </div>
+        ${rpSummary(b.students.length, 'Students', rec, pen)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr>
@@ -391,8 +397,9 @@ function viewOneOnOne(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="mb-6">
             <h2 class="text-xl font-bold text-white">1-on-1 Training</h2>
-            <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches) · <span class="t-gold">${money(rec)}</span> received · <span class="t-coral">${money(pen)}</span> pending</p>
+            <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches)</p>
         </div>
+        ${rpSummary(list.length, '1-on-1 Students', rec, pen)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -438,8 +445,9 @@ function viewPhysical(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="mb-6">
             <h2 class="text-xl font-bold text-white flex items-center gap-2">${ic('map-pin','w-5 h-5 text-[#E14B5E]')} Physical Batch Students</h2>
-            <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches) · <span class="t-gold">${money(rec)}</span> received · <span class="t-coral">${money(pen)}</span> pending</p>
+            <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches)</p>
         </div>
+        ${rpSummary(list.length, 'Physical Students', rec, pen)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -457,6 +465,7 @@ function viewInstallments(){
     state.batches.forEach(b => b.students.forEach(s => { if (num(s.feePending) > 0) list.push({ b, s }); }));
     list.sort((a,z)=> num(z.s.feePending)-num(a.s.feePending));
     const totalPending = list.reduce((a,x)=>a+num(x.s.feePending),0);
+    const totalPaid = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const rows = list.map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
@@ -483,8 +492,9 @@ function viewInstallments(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="mb-6">
             <h2 class="text-xl font-bold text-white">Students on Installments</h2>
-            <p class="t-muted text-sm">${list.length} students owe <span class="t-coral font-semibold">${money(totalPending)}</span> in total (all batches)</p>
+            <p class="t-muted text-sm">${list.length} students with a pending balance (all batches)</p>
         </div>
+        ${rpSummary(list.length, 'On installments', totalPaid, totalPending)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
@@ -506,141 +516,8 @@ window.recordPayment = (bid, sid) => {
     save(); render();
 };
 
-/* =====================================================================
-   TAB: PENDING PAYMENTS (standalone pending records, per batch)
-   ===================================================================== */
+/* batchName — used by the fund / other-payment batch pickers */
 function batchName(id){ return (state.batches.find(b=>b.id===id)||{}).name || '—'; }
-function batchPicker(selectedId){
-    return `<div class="cdd mt-1" data-cdd>
-        <input type="hidden" id="mp-batch" value="${selectedId}">
-        <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
-            <span id="mp-batch-label" class="cdd-val">${esc(batchName(selectedId))}</span>
-            <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <ul class="cdd-menu">${state.batches.map(b=>`<li class="cdd-opt ${b.id===selectedId?'active':''}" onclick="pendBatchSelect('${b.id}')">${esc(b.name)}</li>`).join('')}</ul>
-    </div>`;
-}
-window.pendBatchSelect = (id) => {
-    const h = document.getElementById('mp-batch'); h.value = id;
-    document.getElementById('mp-batch-label').innerText = batchName(id);
-    const cdd = h.closest('[data-cdd]');
-    cdd.classList.remove('open');
-    cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${id}'`)));
-};
-window.pendAddBatch = () => {
-    const name = (prompt("New batch name:", `Batch ${nextBatchNum()}`) || '').trim();
-    if (!name) return;
-    const b = makeBatch(name); state.batches.push(b); save();
-    const cdd = document.getElementById('mp-batch').closest('[data-cdd]');
-    cdd.querySelector('.cdd-menu').innerHTML = state.batches.map(x=>`<li class="cdd-opt ${x.id===b.id?'active':''}" onclick="pendBatchSelect('${x.id}')">${esc(x.name)}</li>`).join('');
-    pendBatchSelect(b.id);
-};
-
-function viewPending(){
-    const b = activeBatch();
-    const list = b.pending || [];
-    const batchTotal = batchPendingTotal(b);
-    const grand = globalTotals().pending;
-    const rows = list.map((p,i) => `
-        <tr>
-            <td class="t-muted num">${i+1}</td>
-            <td class="font-semibold text-white">${esc(p.name)||'<span class=\'t-muted\'>—</span>'}</td>
-            <td class="text-white/70 num">${esc(p.contact)||'—'}</td>
-            <td>${bundleBadge(p.bundleType)}</td>
-            <td class="text-white/85">${esc(programLabel(p))}</td>
-            <td class="t-muted">${esc(p.date)||'—'}</td>
-            <td class="t-muted">${esc(p.note)||'—'}</td>
-            <td class="text-right num t-coral font-semibold">${money(p.amount)}</td>
-            <td class="text-right whitespace-nowrap">
-                <button onclick="openPendingModal('${p.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
-                <button onclick="deletePending('${p.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
-            </td>
-        </tr>`).join('');
-    return `
-    <div class="glass rounded-3xl p-6 md:p-8">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-            <div>
-                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Pending Payments</h2>
-                <p class="t-muted text-sm">All pending across every batch: <span class="t-coral font-semibold">${money(grand)}</span></p>
-            </div>
-            <button onclick="openPendingModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Pending</button>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-            ${miniStat('This batch pending', money(batchTotal), COLOR.coral)}
-            ${miniStat('Entries', String(list.length), COLOR.gold)}
-            ${miniStat('All-batch pending', money(grand), COLOR.coral)}
-        </div>
-        <div class="overflow-x-auto">
-            <table class="tbl w-full text-sm">
-                <thead><tr><th>#</th><th>Name</th><th>Contact</th><th>Bundle</th><th>Program</th><th>Date</th><th>Note</th><th class="text-right">Pending</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-10">No pending payments in this batch. Click <b class="t-coral">Add Pending</b>.</td></tr>`}</tbody>
-            </table>
-        </div>
-    </div>`;
-}
-window.deletePending = (id) => {
-    const b = activeBatch();
-    if (!confirm("Delete this pending payment?")) return;
-    b.pending = (b.pending||[]).filter(p=>p.id!==id); save(); render();
-};
-window.openPendingModal = (id) => {
-    const cur = activeBatch();
-    // find entry across batches (edit) or default new for active batch
-    let owningBatchId = cur.id, editing = null;
-    if (id) for (const bb of state.batches){ const e = (bb.pending||[]).find(p=>p.id===id); if (e){ editing = e; owningBatchId = bb.id; break; } }
-    const p = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], name:'', contact:'', amount:'', date:'', note:'' };
-    tabModal(`${editing?'Edit':'Add'} Pending Payment`, `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="text-xs font-semibold t-muted">Batch</label>
-                <div class="flex gap-2 items-stretch">
-                    <div class="flex-1">${batchPicker(owningBatchId)}</div>
-                    <button type="button" onclick="pendAddBatch()" class="btn-ghost mt-1 px-3 rounded-xl text-sm font-semibold t-coral inline-flex items-center gap-1 shrink-0" title="Create a new batch">${ic('plus','w-4 h-4')} New</button>
-                </div>
-            </div>
-            <div><label class="text-xs font-semibold t-muted">Student name</label><input id="m-name" class="field mt-1" value="${esc(p.name)}" placeholder="Student name"></div>
-            <div><label class="text-xs font-semibold t-muted">Contact</label><input id="m-contact" class="field mt-1" value="${esc(p.contact)}" placeholder="03xx xxxxxxx"></div>
-            <div><label class="text-xs font-semibold t-muted">Bundle Type</label>${bundlePicker(p.bundleType)}</div>
-        </div>
-        <div class="mt-4">
-            <label class="text-xs font-semibold t-muted">Course selection <span id="m-course-hint" class="t-muted"></span></label>
-            <div id="m-courses" class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">${courseChecksHtml(p.courses)}</div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div><label class="text-xs font-semibold t-coral">Pending Amount</label><input id="m-amount" type="number" class="field mt-1" value="${p.amount}" placeholder="0"></div>
-            <div><label class="text-xs font-semibold t-muted">Due date</label><input id="m-date" class="field mt-1" value="${esc(p.date)}" placeholder="e.g. 28 June"></div>
-            <div><label class="text-xs font-semibold t-muted">Note (optional)</label><input id="m-note" class="field mt-1" value="${esc(p.note)}" placeholder="e.g. 2nd installment"></div>
-        </div>
-        <div class="flex justify-end gap-2 mt-6">
-            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
-            <button onclick="savePending('${editing?editing.id:''}','${owningBatchId}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add pending'}</button>
-        </div>`);
-};
-window.savePending = (id, oldBatchId) => {
-    const targetId = document.getElementById('mp-batch').value;
-    const target = state.batches.find(b=>b.id===targetId) || activeBatch();
-    const courses = [...document.querySelectorAll('.course-chk')].filter(c=>c.checked).map(c=>c.value);
-    const data = {
-        name: document.getElementById('m-name').value.trim(),
-        contact: document.getElementById('m-contact').value.trim(),
-        bundleType: document.getElementById('m-bundle').value, courses,
-        amount: num(document.getElementById('m-amount').value),
-        date: document.getElementById('m-date').value.trim(),
-        note: document.getElementById('m-note').value.trim(),
-    };
-    if (!data.name) return alert("Please enter the student's name.");
-    if (id) {
-        // remove from old batch, then add to target (batch may have changed)
-        const old = state.batches.find(b=>b.id===oldBatchId);
-        if (old) old.pending = (old.pending||[]).filter(x=>x.id!==id);
-        target.pending = target.pending || [];
-        target.pending.push(normalizePending({ ...data, id }));
-    } else {
-        target.pending = target.pending || [];
-        target.pending.push(normalizePending(data));
-    }
-    save(); closeModal(); render();
-};
 
 /* =====================================================================
    TAB: BUNDLES & COURSES BREAKDOWN
@@ -1022,14 +899,15 @@ window.deleteFundEntry = (type, id) => {
 };
 
 /* =====================================================================
-   TAB: OTHER PAYMENTS (lump-sum amounts for batches without student records)
+   OTHER PAYMENTS (lump sums; shown as a section inside Summary).
+   Tie one to a batch to fold it into that batch's totals + profit share.
    ===================================================================== */
-function viewOtherPayments(){
+function otherPaymentsSection(){
     const list = state.otherPayments || [];
     const total = otherPaymentsTotal();
     const rows = list.map(o => `
         <tr>
-            <td class="font-semibold text-white">${esc(o.batch)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="font-semibold text-white">${o.batchId?esc(batchName(o.batchId)):'<span class="t-muted">General</span>'}</td>
             <td class="text-white/70">${esc(o.note)||'—'}</td>
             <td class="t-muted">${esc(o.date)||'—'}</td>
             <td class="text-right num t-gold font-semibold">${money(o.amount)}</td>
@@ -1040,16 +918,16 @@ function viewOtherPayments(){
         </tr>`).join('');
     return `
     <div class="glass rounded-3xl p-6 md:p-8">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-                <h2 class="text-xl font-bold text-white">Other Payments</h2>
-                <p class="t-muted text-sm">Lump-sum amounts for batches with no student records · <span class="t-gold font-semibold">${money(total)}</span> total (included in Total Received).</p>
+                <h2 class="text-lg font-bold text-white">Other Payments</h2>
+                <p class="t-muted text-sm">Lump sums for batches with no student records · <span class="t-gold font-semibold">${money(total)}</span> total (added to Total Received; batch-tied ones also count in that batch's Profit Share).</p>
             </div>
             <button onclick="openOtherModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Payment</button>
         </div>
         <div class="overflow-x-auto"><table class="tbl w-full text-sm">
-            <thead><tr><th>Batch / label</th><th>Note</th><th>Date</th><th class="text-right">Amount</th><th></th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="5" class="text-center t-muted py-10">No other payments recorded. Click <b class="t-coral">Add Payment</b>.</td></tr>`}</tbody>
+            <thead><tr><th>Batch</th><th>Note</th><th>Date</th><th class="text-right">Amount</th><th></th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="5" class="text-center t-muted py-8">No other payments recorded. Click <b class="t-coral">Add Payment</b>.</td></tr>`}</tbody>
             ${list.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)"><td colspan="3">Total</td><td class="text-right num t-gold">${money(total)}</td><td></td></tr></tfoot>`:''}
         </table></div>
     </div>`;
@@ -1057,11 +935,11 @@ function viewOtherPayments(){
 window.openOtherModal = (id) => {
     if (window.__getRole && window.__getRole() === 'viewer') return;
     const editing = id ? (state.otherPayments||[]).find(o=>o.id===id) : null;
-    const o = editing ? JSON.parse(JSON.stringify(editing)) : { batch:'', note:'', amount:'', date:'' };
+    const o = editing ? JSON.parse(JSON.stringify(editing)) : { batchId:'', note:'', amount:'', date:'' };
     plainModal(`${editing?'Edit':'Add'} Other Payment`, `
         <div class="space-y-3">
-            <div><label class="text-xs font-semibold t-muted">Batch / label</label><input id="op-batch" class="field mt-1" value="${esc(o.batch)}" placeholder="e.g. Batch 1 (no records)"></div>
-            <div><label class="text-xs font-semibold t-muted">Note (optional)</label><input id="op-note" class="field mt-1" value="${esc(o.note)}" placeholder="e.g. total collected"></div>
+            <div><label class="text-xs font-semibold t-muted">Batch (tie it in to include in that batch's share)</label>${fundBatchPicker(o.batchId)}</div>
+            <div><label class="text-xs font-semibold t-muted">Note / label</label><input id="op-note" class="field mt-1" value="${esc(o.note)}" placeholder="e.g. Batch 1 total collected"></div>
             <div class="grid grid-cols-2 gap-3">
                 <div><label class="text-xs font-semibold t-gold">Amount</label><input id="op-amount" type="number" class="field mt-1" value="${o.amount}" placeholder="0"></div>
                 <div><label class="text-xs font-semibold t-muted">Date</label><input id="op-date" class="field mt-1" value="${esc(o.date)}" placeholder="e.g. 8 July"></div>
@@ -1074,7 +952,7 @@ window.openOtherModal = (id) => {
 };
 window.saveOther = (id) => {
     const data = {
-        batch: document.getElementById('op-batch').value.trim(),
+        batchId: document.getElementById('fund-batch').value || '',
         note: document.getElementById('op-note').value.trim(),
         amount: num(document.getElementById('op-amount').value),
         date: document.getElementById('op-date').value.trim(),
@@ -1162,11 +1040,12 @@ function viewSummary(){
                 <h2 class="text-lg font-bold text-white mb-4">Grand Totals</h2>
                 <div class="space-y-3">
                     ${sumRow('Received', money(gRec), COLOR.gold)}
+                    ${otherPaymentsTotal()>0?sumRow('Other payments', money(otherPaymentsTotal()), COLOR.gold):''}
                     ${sumRow('Pending', money(gPen), COLOR.coral)}
                     ${sumRow('Refunded', money(gRef), COLOR.coral)}
                     ${sumRow('Prev. received', money(gPrev), COLOR.gold)}
                     ${sumRow('Prev. pending', money(gPrevPen), COLOR.coral)}
-                    <div class="border-t border-white/10 pt-3">${sumRow('Grand total (rec+pend)', money(gRec+gPen), COLOR.gold, true)}</div>
+                    <div class="border-t border-white/10 pt-3">${sumRow('Grand total (rec+pend)', money(gRec+otherPaymentsTotal()+gPen), COLOR.gold, true)}</div>
                 </div>
             </div>
         </div>
@@ -1204,6 +1083,7 @@ function viewSummary(){
             </table>
             </div>
         </div>
+        ${otherPaymentsSection()}
     </div>`;
 }
 
@@ -1288,9 +1168,10 @@ function viewShare(){
                 <button onclick="downloadShareReport()" class="edit-only btn-primary px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap inline-flex items-center gap-1.5">${ic('download','w-4 h-4')} Download report</button>
             </div>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <div class="grid grid-cols-2 ${d.other>0?'md:grid-cols-5':'md:grid-cols-4'} gap-3 mb-8">
             ${miniStat('Current received', money(d.currentReceived), COLOR.gold)}
             ${miniStat('+ Previous batch', money(d.prevReceived), COLOR.coral)}
+            ${d.other>0?miniStat('+ Other payments', money(d.other), COLOR.gold):''}
             ${miniStat('− Refunds', money(d.refunds), COLOR.coral)}
             ${miniStat('= Net distributable', money(d.total), COLOR.gold)}
         </div>

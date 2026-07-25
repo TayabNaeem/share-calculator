@@ -78,10 +78,12 @@ function normalizeFundEntry(e){
 function normalizeOther(o){
     return {
         id: o.id || ('o'+Math.random().toString(36).slice(2)),
-        batch: o.batch || '', note: o.note || '',
+        batchId: o.batchId || '',
+        note: o.note || o.batch || '',   // migrate old free-text batch label into note
         amount: num(o.amount), date: o.date || '',
     };
 }
+function otherForBatch(bid){ return (state.otherPayments||[]).filter(o=>o.batchId===bid).reduce((a,o)=>a+num(o.amount),0); }
 function fundAutoTotal(){ return state.batches.reduce((a,b)=>a+shareBreakdown(b).future,0); }
 function fundAdditionsTotal(){ return (state.fund.additions||[]).reduce((a,e)=>a+num(e.amount),0); }
 function fundExpensesTotal(){ return (state.fund.expenses||[]).reduce((a,e)=>a+num(e.amount),0); }
@@ -200,10 +202,19 @@ function shareBreakdown(b){
             TEAM.forEach(n => team[n]+=split);
         }
     });
+    // Other (lump-sum) payments tied to this batch: no course, so split like a no-lead amount
+    const other = otherForBatch(b.id);
+    if (other) {
+        total += other;
+        owner += other*0.40; future += other*0.36;
+        const split = (other*0.24)/TEAM.length;
+        TEAM.forEach(n => team[n]+=split);
+    }
     return {
         per, owner, future, total, team,
         currentReceived: (b.students||[]).reduce((a,s)=>a+num(s.feePaid),0),
         prevReceived: batchPrevReceived(b),
         refunds: batchRefundTotal(b),
+        other,
     };
 }
