@@ -13,6 +13,8 @@ function seedState(){
         companyName: 'Skillmentor.pk',
         logo: '',
         favicon: '',
+        fund: { additions: [], expenses: [] },
+        otherPayments: [],
         batches: [
             { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' },
             { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' },
@@ -55,10 +57,36 @@ window.__loadState = (incoming) => {
         });
         if (!state.batches.length) state = seedState();
     }
+    // Future-fund ledger + other (lump-sum) payments
+    const f = state.fund && typeof state.fund === 'object' ? state.fund : {};
+    state.fund = {
+        additions: Array.isArray(f.additions) ? f.additions.map(normalizeFundEntry) : [],
+        expenses:  Array.isArray(f.expenses)  ? f.expenses.map(normalizeFundEntry)  : [],
+    };
+    state.otherPayments = Array.isArray(state.otherPayments) ? state.otherPayments.map(normalizeOther) : [];
     activeBatchId = state.activeBatchId && state.batches.some(b=>b.id===state.activeBatchId)
         ? state.activeBatchId : state.batches[0].id;
     render();
 };
+function normalizeFundEntry(e){
+    return {
+        id: e.id || ('f'+Math.random().toString(36).slice(2)),
+        batchId: e.batchId || '', note: e.note || '',
+        amount: num(e.amount), date: e.date || '',
+    };
+}
+function normalizeOther(o){
+    return {
+        id: o.id || ('o'+Math.random().toString(36).slice(2)),
+        batch: o.batch || '', note: o.note || '',
+        amount: num(o.amount), date: o.date || '',
+    };
+}
+function fundAutoTotal(){ return state.batches.reduce((a,b)=>a+shareBreakdown(b).future,0); }
+function fundAdditionsTotal(){ return (state.fund.additions||[]).reduce((a,e)=>a+num(e.amount),0); }
+function fundExpensesTotal(){ return (state.fund.expenses||[]).reduce((a,e)=>a+num(e.amount),0); }
+function fundBalance(){ return fundAutoTotal() + fundAdditionsTotal() - fundExpensesTotal(); }
+function otherPaymentsTotal(){ return (state.otherPayments||[]).reduce((a,o)=>a+num(o.amount),0); }
 
 function normalizeStudent(s){
     return {
@@ -125,6 +153,7 @@ function globalTotals(){
         pending += batchPendingTotal(b);   // standalone pending-payment records (all batches)
         refunded += batchRefundTotal(b);
     });
+    received += otherPaymentsTotal();       // lump-sum payments with no student records
     return { received, pending, refunded, students };
 }
 function groupByProgram(students){

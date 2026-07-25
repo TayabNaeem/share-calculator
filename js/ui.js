@@ -89,6 +89,8 @@ function render(){
     else if (activeTab === 'breakdown')    c.innerHTML = viewBreakdown();
     else if (activeTab === 'previous')     c.innerHTML = viewPrevious();
     else if (activeTab === 'refunds')      c.innerHTML = viewRefunds();
+    else if (activeTab === 'futurefund')   c.innerHTML = viewFutureFund();
+    else if (activeTab === 'otherpayments')c.innerHTML = viewOtherPayments();
     else if (activeTab === 'summary')      c.innerHTML = viewSummary();
     else if (activeTab === 'share')      { c.innerHTML = viewShare(); wireShare(); }
     refreshIcons();
@@ -862,6 +864,230 @@ window.saveRefund = (id) => {
     if (id) Object.assign(b.refunds.find(x=>x.id===id), data);
     else b.refunds.push(normalizeRefund(data));
     save(); closeModal(); render();
+};
+
+/* =====================================================================
+   Simple modal (no bundle picker) — used by fund / other-payment forms
+   ===================================================================== */
+function plainModal(title, inner){
+    document.getElementById('modal-root').innerHTML = `
+    <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,7,18,0.72);backdrop-filter:blur(4px)" onclick="if(event.target===this)closeModal()">
+        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border border-white/10" style="background:var(--navy-2)">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">${title}</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+            ${inner}
+        </div>
+    </div>`;
+};
+
+/* =====================================================================
+   TAB: FUTURE FUND (36% of every batch + manual additions − expenses)
+   ===================================================================== */
+function fundBatchPicker(selectedId){
+    const label = selectedId ? batchName(selectedId) : 'General (no batch)';
+    return `<div class="cdd mt-1" data-cdd>
+        <input type="hidden" id="fund-batch" value="${selectedId||''}">
+        <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
+            <span id="fund-batch-label" class="cdd-val">${esc(label)}</span>
+            <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <ul class="cdd-menu">
+            <li class="cdd-opt ${!selectedId?'active':''}" onclick="fundBatchSelect('')">General (no batch)</li>
+            ${state.batches.map(b=>`<li class="cdd-opt ${b.id===selectedId?'active':''}" onclick="fundBatchSelect('${b.id}')">${esc(b.name)}</li>`).join('')}
+        </ul>
+    </div>`;
+}
+window.fundBatchSelect = (id) => {
+    document.getElementById('fund-batch').value = id;
+    document.getElementById('fund-batch-label').innerText = id ? batchName(id) : 'General (no batch)';
+    const cdd = document.getElementById('fund-batch').closest('[data-cdd]');
+    cdd.classList.remove('open');
+    cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${id}'`)));
+};
+function viewFutureFund(){
+    const auto = fundAutoTotal(), adds = fundAdditionsTotal(), exp = fundExpensesTotal();
+    const bal = auto + adds - exp;
+    const batchRows = state.batches.map(b => {
+        const f = shareBreakdown(b).future;
+        return `<tr><td class="font-semibold text-white">${esc(b.name)}</td><td class="text-right num t-gold">${money(f)}</td></tr>`;
+    }).join('');
+    const addRows = (state.fund.additions||[]).map(e => `
+        <tr>
+            <td class="text-white">${esc(e.note)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-white/70">${e.batchId?esc(batchName(e.batchId)):'<span class="t-muted">General</span>'}</td>
+            <td class="t-muted">${esc(e.date)||'—'}</td>
+            <td class="text-right num t-gold font-semibold">${money(e.amount)}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openFundEntry('addition','${e.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="deleteFundEntry('addition','${e.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px">${ic('trash-2','w-4 h-4')}</button>
+            </td>
+        </tr>`).join('');
+    const expRows = (state.fund.expenses||[]).map(e => `
+        <tr>
+            <td class="text-white">${esc(e.note)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="t-muted">${esc(e.date)||'—'}</td>
+            <td class="text-right num t-coral font-semibold">− ${money(e.amount)}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openFundEntry('expense','${e.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="deleteFundEntry('expense','${e.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px">${ic('trash-2','w-4 h-4')}</button>
+            </td>
+        </tr>`).join('');
+    return `
+    <div class="space-y-5">
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <div class="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                    <h2 class="text-sm font-bold t-muted uppercase tracking-wide">Future Fund Balance</h2>
+                    <p class="text-4xl font-extrabold t-gold num mt-1">${money(bal)}</p>
+                </div>
+                <div class="grid grid-cols-3 gap-3 text-right">
+                    ${miniStat('From batches (36%)', money(auto), COLOR.gold)}
+                    ${miniStat('Manual additions', money(adds), COLOR.gold)}
+                    ${miniStat('Expenses', money(exp), COLOR.coral)}
+                </div>
+            </div>
+        </div>
+
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div><h2 class="text-lg font-bold text-white">Manual additions</h2><p class="t-muted text-sm">Extra contributions you add to the fund.</p></div>
+                <button onclick="openFundEntry('addition')" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add</button>
+            </div>
+            <div class="overflow-x-auto"><table class="tbl w-full text-sm">
+                <thead><tr><th>Note</th><th>Batch</th><th>Date</th><th class="text-right">Amount</th><th></th></tr></thead>
+                <tbody>${addRows || `<tr><td colspan="5" class="text-center t-muted py-8">No manual additions yet.</td></tr>`}</tbody>
+            </table></div>
+        </div>
+
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div><h2 class="text-lg font-bold text-white">Expenses</h2><p class="t-muted text-sm">Deducted from the fund balance.</p></div>
+                <button onclick="openFundEntry('expense')" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add</button>
+            </div>
+            <div class="overflow-x-auto"><table class="tbl w-full text-sm">
+                <thead><tr><th>Expense</th><th>Date</th><th class="text-right">Amount</th><th></th></tr></thead>
+                <tbody>${expRows || `<tr><td colspan="4" class="text-center t-muted py-8">No expenses recorded.</td></tr>`}</tbody>
+            </table></div>
+        </div>
+
+        <div class="glass rounded-3xl p-6 md:p-8">
+            <h2 class="text-lg font-bold text-white mb-1">Future fund by batch (36%)</h2>
+            <p class="t-muted text-sm mb-4">Auto-calculated from each batch's profit share.</p>
+            <div class="overflow-x-auto"><table class="tbl w-full text-sm">
+                <thead><tr><th>Batch</th><th class="text-right">Future Fund</th></tr></thead>
+                <tbody>${batchRows}</tbody>
+                <tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)"><td>All batches</td><td class="text-right num t-gold">${money(auto)}</td></tr></tfoot>
+            </table></div>
+        </div>
+    </div>`;
+}
+window.openFundEntry = (type, id) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const isExp = type === 'expense';
+    const list = isExp ? state.fund.expenses : state.fund.additions;
+    const editing = id ? list.find(x=>x.id===id) : null;
+    const e = editing ? JSON.parse(JSON.stringify(editing)) : { note:'', amount:'', date:'', batchId:'' };
+    plainModal(`${editing?'Edit':'Add'} ${isExp?'Expense':'Fund Addition'}`, `
+        <div class="space-y-3">
+            <div><label class="text-xs font-semibold t-muted">${isExp?'Expense':'Note'}</label><input id="fe-note" class="field mt-1" value="${esc(e.note)}" placeholder="${isExp?'e.g. Office rent':'e.g. Extra contribution'}"></div>
+            ${!isExp?`<div><label class="text-xs font-semibold t-muted">Batch (optional)</label>${fundBatchPicker(e.batchId)}</div>`:''}
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-semibold ${isExp?'t-coral':'t-gold'}">Amount</label><input id="fe-amount" type="number" class="field mt-1" value="${e.amount}" placeholder="0"></div>
+                <div><label class="text-xs font-semibold t-muted">Date</label><input id="fe-date" class="field mt-1" value="${esc(e.date)}" placeholder="e.g. 8 July"></div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="saveFundEntry('${type}','${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save':'Add'}</button>
+        </div>`);
+};
+window.saveFundEntry = (type, id) => {
+    const isExp = type === 'expense';
+    const list = isExp ? state.fund.expenses : state.fund.additions;
+    const data = {
+        note: document.getElementById('fe-note').value.trim(),
+        amount: num(document.getElementById('fe-amount').value),
+        date: document.getElementById('fe-date').value.trim(),
+        batchId: isExp ? '' : (document.getElementById('fund-batch').value || ''),
+    };
+    if (data.amount <= 0) return alert("Please enter an amount greater than 0.");
+    if (id) Object.assign(list.find(x=>x.id===id), data);
+    else list.push(normalizeFundEntry(data));
+    save(); closeModal(); render();
+};
+window.deleteFundEntry = (type, id) => {
+    if (!confirm("Delete this entry?")) return;
+    if (type === 'expense') state.fund.expenses = state.fund.expenses.filter(x=>x.id!==id);
+    else state.fund.additions = state.fund.additions.filter(x=>x.id!==id);
+    save(); render();
+};
+
+/* =====================================================================
+   TAB: OTHER PAYMENTS (lump-sum amounts for batches without student records)
+   ===================================================================== */
+function viewOtherPayments(){
+    const list = state.otherPayments || [];
+    const total = otherPaymentsTotal();
+    const rows = list.map(o => `
+        <tr>
+            <td class="font-semibold text-white">${esc(o.batch)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-white/70">${esc(o.note)||'—'}</td>
+            <td class="t-muted">${esc(o.date)||'—'}</td>
+            <td class="text-right num t-gold font-semibold">${money(o.amount)}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openOtherModal('${o.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="deleteOther('${o.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px">${ic('trash-2','w-4 h-4')}</button>
+            </td>
+        </tr>`).join('');
+    return `
+    <div class="glass rounded-3xl p-6 md:p-8">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+                <h2 class="text-xl font-bold text-white">Other Payments</h2>
+                <p class="t-muted text-sm">Lump-sum amounts for batches with no student records · <span class="t-gold font-semibold">${money(total)}</span> total (included in Total Received).</p>
+            </div>
+            <button onclick="openOtherModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Payment</button>
+        </div>
+        <div class="overflow-x-auto"><table class="tbl w-full text-sm">
+            <thead><tr><th>Batch / label</th><th>Note</th><th>Date</th><th class="text-right">Amount</th><th></th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="5" class="text-center t-muted py-10">No other payments recorded. Click <b class="t-coral">Add Payment</b>.</td></tr>`}</tbody>
+            ${list.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)"><td colspan="3">Total</td><td class="text-right num t-gold">${money(total)}</td><td></td></tr></tfoot>`:''}
+        </table></div>
+    </div>`;
+}
+window.openOtherModal = (id) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const editing = id ? (state.otherPayments||[]).find(o=>o.id===id) : null;
+    const o = editing ? JSON.parse(JSON.stringify(editing)) : { batch:'', note:'', amount:'', date:'' };
+    plainModal(`${editing?'Edit':'Add'} Other Payment`, `
+        <div class="space-y-3">
+            <div><label class="text-xs font-semibold t-muted">Batch / label</label><input id="op-batch" class="field mt-1" value="${esc(o.batch)}" placeholder="e.g. Batch 1 (no records)"></div>
+            <div><label class="text-xs font-semibold t-muted">Note (optional)</label><input id="op-note" class="field mt-1" value="${esc(o.note)}" placeholder="e.g. total collected"></div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-semibold t-gold">Amount</label><input id="op-amount" type="number" class="field mt-1" value="${o.amount}" placeholder="0"></div>
+                <div><label class="text-xs font-semibold t-muted">Date</label><input id="op-date" class="field mt-1" value="${esc(o.date)}" placeholder="e.g. 8 July"></div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="saveOther('${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save':'Add'}</button>
+        </div>`);
+};
+window.saveOther = (id) => {
+    const data = {
+        batch: document.getElementById('op-batch').value.trim(),
+        note: document.getElementById('op-note').value.trim(),
+        amount: num(document.getElementById('op-amount').value),
+        date: document.getElementById('op-date').value.trim(),
+    };
+    if (data.amount <= 0) return alert("Please enter an amount greater than 0.");
+    state.otherPayments = state.otherPayments || [];
+    if (id) Object.assign(state.otherPayments.find(o=>o.id===id), data);
+    else state.otherPayments.push(normalizeOther(data));
+    save(); closeModal(); render();
+};
+window.deleteOther = (id) => {
+    if (!confirm("Delete this payment?")) return;
+    state.otherPayments = (state.otherPayments||[]).filter(o=>o.id!==id); save(); render();
 };
 
 /* =====================================================================
