@@ -1008,32 +1008,27 @@ function viewSummary(){
             <td class="w-40"><div class="h-2 rounded-full bg-white/10 overflow-hidden"><div style="width:${Math.round(p.received/maxRec*100)}%;background:linear-gradient(90deg,${COLOR.coral},${COLOR.gold})" class="h-full"></div></div></td>
         </tr>`).join('');
 
-    const maxBar = Math.max(1, ...state.batches.map(b=>b.students.reduce((a,s)=>a+num(s.feePaid)+num(s.feePending),0)));
-    const bars = state.batches.map(b => {
-        const rec=b.students.reduce((a,s)=>a+num(s.feePaid),0);
-        const pen=b.students.reduce((a,s)=>a+num(s.feePending),0);
-        const total=rec+pen;
-        return `<div class="flex flex-col items-center gap-2 flex-1 min-w-[54px]">
+    // Net distributable per batch (same figure as the Profit Share tab)
+    const netByBatch = state.batches.map(b => ({ b, net: shareBreakdown(b).total }));
+    const maxBar = Math.max(1, ...netByBatch.map(x=>x.net));
+    const bars = netByBatch.map(({b, net}) => `
+        <div class="flex flex-col items-center gap-2 flex-1 min-w-[54px]">
             <div class="w-full flex items-end justify-center" style="height:150px">
-                <div class="w-9 rounded-t-lg relative overflow-hidden flex flex-col justify-end" style="height:${Math.max(4,Math.round(total/maxBar*150))}px;background:rgba(255,255,255,0.08)">
-                    <div style="height:${total>0?Math.round(rec/total*100):0}%;background:linear-gradient(180deg,${COLOR.gold},${COLOR.gold})"></div>
-                </div>
+                <div class="w-9 rounded-t-lg" style="height:${Math.max(4,Math.round(net/maxBar*150))}px;background:linear-gradient(180deg,${COLOR.gold},#e6b23e)"></div>
             </div>
-            <span class="text-[11px] t-muted num">${money(total).replace('Rs ','')}</span>
+            <span class="text-[11px] font-bold t-gold num">${money(net).replace('Rs ','')}</span>
             <span class="text-xs t-muted font-medium">${esc(b.name)}</span>
-        </div>`;
-    }).join('');
+        </div>`).join('');
 
     return `
     <div class="space-y-5">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div class="glass rounded-3xl p-6 lg:col-span-2">
                 <h2 class="text-lg font-bold text-white mb-1">All Batches Overview</h2>
-                <p class="t-muted text-sm mb-4">Received vs total (received + pending) per batch.</p>
+                <p class="t-muted text-sm mb-4">Net distributable amount per batch (the total in each batch — same figure as Profit Share).</p>
                 <div class="flex items-end gap-3 justify-around px-2">${bars}</div>
                 <div class="flex items-center gap-4 mt-4 text-xs t-muted">
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${COLOR.gold}"></span>Received</span>
-                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:rgba(255,255,255,0.14)"></span>Pending</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:${COLOR.gold}"></span>Net distributable (received + previous + other − refunds)</span>
                 </div>
             </div>
             <div class="glass rounded-3xl p-6 flex flex-col justify-center">
