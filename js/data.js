@@ -13,6 +13,7 @@ function seedState(){
         companyName: 'Skillmentor.pk',
         logo: '',
         favicon: '',
+        userAvatars: {},
         fund: { additions: [], expenses: [] },
         otherPayments: [],
         batches: [
@@ -25,6 +26,19 @@ function seedState(){
 
 /* ---------- Persistence bridge (auth.js drives these) ---------- */
 window.__getState = () => state;
+// Per-user profile pictures live in the shared dataset (state.userAvatars keyed by lowercase email),
+// same as the company logo — Firebase Auth photoURL is too short to hold a data URL.
+window.__getAvatar = (email) => {
+    if (!state || !state.userAvatars) return '';
+    return state.userAvatars[String(email||'').toLowerCase()] || '';
+};
+window.__setAvatar = (email, dataUrl) => {
+    const k = String(email||'').toLowerCase(); if (!k) return;
+    if (!state) return;
+    if (!state.userAvatars || typeof state.userAvatars !== 'object') state.userAvatars = {};
+    if (dataUrl) state.userAvatars[k] = dataUrl; else delete state.userAvatars[k];
+    if (window.__queueSave) window.__queueSave();
+};
 window.__loadState = (incoming) => {
     if (!incoming) { state = seedState(); }
     else {
@@ -64,6 +78,7 @@ window.__loadState = (incoming) => {
         expenses:  Array.isArray(f.expenses)  ? f.expenses.map(normalizeFundEntry)  : [],
     };
     state.otherPayments = Array.isArray(state.otherPayments) ? state.otherPayments.map(normalizeOther) : [];
+    state.userAvatars = (state.userAvatars && typeof state.userAvatars === 'object') ? state.userAvatars : {};
     activeBatchId = state.activeBatchId && state.batches.some(b=>b.id===state.activeBatchId)
         ? state.activeBatchId : state.batches[0].id;
     render();

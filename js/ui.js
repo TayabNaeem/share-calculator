@@ -120,12 +120,14 @@ function renderKpis(){
         { label:'Students',       val:t.students,        sub:'enrolled total',        icon:'users',      color:COLOR.white },
     ];
     document.getElementById('kpi-strip').innerHTML = cards.map(c => `
-        <div class="glass card-hover rounded-2xl p-5 relative overflow-hidden">
+        <div class="glass card-hover rounded-2xl p-5 relative overflow-hidden flex items-center gap-4">
             <div class="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-15 blur-xl" style="background:${c.color}"></div>
-            <div class="icon-tile w-10 h-10 mb-3" style="background:${c.color}22;color:${c.color}">${ic(c.icon,'w-5 h-5')}</div>
-            <p class="text-2xl font-extrabold text-ink num tracking-tight">${c.val}</p>
-            <p class="text-xs font-semibold text-ink-70 mt-1">${c.label}</p>
-            <p class="text-xs t-muted">${c.sub}</p>
+            <div class="icon-tile w-12 h-12 shrink-0" style="background:${c.color}22;color:${c.color}">${ic(c.icon,'w-6 h-6')}</div>
+            <div class="min-w-0 relative">
+                <p class="text-2xl font-extrabold text-ink num tracking-tight">${c.val}</p>
+                <p class="text-xs font-semibold text-ink-70 mt-1 whitespace-nowrap">${c.label}</p>
+                <p class="text-xs t-muted whitespace-nowrap">${c.sub}</p>
+            </div>
         </div>`).join('');
 }
 

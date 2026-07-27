@@ -121,6 +121,7 @@ function subscribeData(){
         if (snap.metadata.hasPendingWrites) return;
         if (snap.exists() && snap.data().state) window.__loadState(snap.data().state);
         else { window.__loadState(null); if (canEdit()) window.__queueSave(); }
+        updateProfileUI(); // reflect the stored profile photo once the dataset is in
     }, (err) => {
         console.error("Firestore read failed:", err);
         setSync(false, "offline · check Firestore");
@@ -191,8 +192,8 @@ document.addEventListener('click', (e) => {
         m.classList.add('hidden-view');
 });
 function initials(n){ return (String(n||'?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('') || '?').toUpperCase(); }
-// Resize an image file to a small square-ish avatar data URL (JPEG) so it fits in the auth photoURL.
-function fileToAvatarDataURL(file, max=128){
+// Any image, any size → a square, centre-cropped avatar data URL (JPEG). Auto-adjusts big images down.
+function fileToAvatarDataURL(file, size=256){
     return new Promise((resolve, reject) => {
         const rd = new FileReader();
         rd.onerror = () => reject(new Error('read'));
@@ -200,11 +201,13 @@ function fileToAvatarDataURL(file, max=128){
             const img = new Image();
             img.onerror = () => reject(new Error('decode'));
             img.onload = () => {
-                const s = Math.min(max / img.width, max / img.height, 1);
-                const w = Math.max(1, Math.round(img.width * s)), h = Math.max(1, Math.round(img.height * s));
-                const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-                cv.getContext('2d').drawImage(img, 0, 0, w, h);
-                resolve(cv.toDataURL('image/jpeg', 0.72));
+                const side = Math.min(img.width, img.height);           // square source region
+                const sx = (img.width - side) / 2, sy = (img.height - side) / 2; // centre crop
+                const cv = document.createElement('canvas'); cv.width = size; cv.height = size;
+                const ctx = cv.getContext('2d');
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+                resolve(cv.toDataURL('image/jpeg', 0.82));
             };
             img.src = rd.result;
         };
@@ -219,7 +222,8 @@ function updateProfileUI(){
     const roleLabel = { owner:'Owner', admin:'Admin', viewer:'Viewer', none:'No access' }[currentRole] || '';
     el('pm-role').innerText = roleLabel;
     const av = el('profile-avatar');
-    if (u.photoURL) av.innerHTML = `<img src="${u.photoURL}" alt="" class="w-full h-full object-cover">`;
+    const photo = (window.__getAvatar && window.__getAvatar(u.email)) || u.photoURL || '';
+    if (photo) av.innerHTML = `<img src="${photo}" alt="" class="w-full h-full object-cover">`;
     else { av.innerHTML = ''; av.innerText = initials(name); }
     const mini = el('pm-name-mini'); if (mini) mini.innerText = name;
     const rmini = el('pm-role-mini'); if (rmini) rmini.innerText = roleLabel;
@@ -241,7 +245,7 @@ window.openEditName = () => {
     el('profile-menu').classList.add('hidden-view');
     pendingPhoto = undefined;
     const name = currentUser?.displayName || '';
-    const cur = currentUser?.photoURL || '';
+    const cur = (window.__getAvatar && window.__getAvatar(currentUser?.email)) || currentUser?.photoURL || '';
     modalShell('Edit profile', `
         <div class="flex items-center gap-4 mb-5">
             <div id="pf-avatar" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-lg shrink-0" style="background:linear-gradient(135deg,#E14B5E,#c23a4d);color:#fff">
@@ -253,6 +257,7 @@ window.openEditName = () => {
                 <input type="file" id="pf-photo" accept="image/*" class="hidden-view" onchange="onProfilePhoto(event)">
             </div>
         </div>
+        <p class="text-xs t-muted mb-4">Any size works — the image is auto-cropped to a square.</p>
         <div><label class="text-xs font-semibold t-muted">Display name</label>
         <input id="pf-name" class="field mt-1" value="${escHtml(name)}" placeholder="Your name"></div>
         <p id="pf-err" class="t-coral text-sm mt-2"></p>`,
@@ -274,10 +279,16 @@ window.removeProfilePhoto = () => {
 };
 window.doEditName = async () => {
     const name = el('pf-name').value.trim();
-    const profile = { displayName: name };
-    if (pendingPhoto !== undefined) profile.photoURL = pendingPhoto; // '' clears, dataURL sets
-    try { await updateProfile(currentUser, profile); updateProfileUI(); window.closeModal(); }
-    catch(e){ el('pf-err').innerText = "Couldn't save" + (pendingPhoto ? " — the photo may be too large. Try a smaller image." : "") + " (" + friendlyErr(e) + ")"; }
+    try {
+        await updateProfile(currentUser, { displayName: name });
+        // Photo lives in the shared dataset (state), not in Auth (photoURL can't hold a data URL).
+        if (pendingPhoto !== undefined && window.__setAvatar) {
+            if (!canEdit()) throw new Error("view only — ask an admin to set your photo");
+            window.__setAvatar(currentUser.email, pendingPhoto); // '' clears, dataURL sets
+        }
+        updateProfileUI();
+        window.closeModal();
+    } catch(e){ el('pf-err').innerText = "Couldn't save (" + friendlyErr(e) + ")"; }
 };
 window.openChangePassword = () => {
     el('profile-menu').classList.add('hidden-view');
