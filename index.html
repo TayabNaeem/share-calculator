@@ -15,7 +15,7 @@
 <div class="grid-overlay"></div>
 
 <!-- ================= CONFIG BANNER ================= -->
-<div id="config-banner" class="hidden-view relative z-50 max-w-3xl mx-auto mt-6 glass rounded-2xl p-5 text-sm" style="color:#B8860B;border-color:rgba(255,205,87,0.3)">
+<div id="config-banner" class="hidden-view relative z-50 max-w-3xl mx-auto mt-6 glass rounded-2xl p-5 text-sm" style="color:#1E293B;border-color:rgba(255,205,87,0.3)">
     <div class="flex gap-3">
         <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0 mt-0.5"></i>
         <div><b>Firebase not configured.</b>
@@ -27,7 +27,7 @@
 <!-- ================= AUTH ================= -->
 <div id="auth-container" class="relative z-10 max-w-md mx-auto mt-20 px-4">
     <div class="text-center mb-7">
-        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass text-xs font-semibold mb-5" style="color:#B8860B">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass text-xs font-semibold mb-5" style="color:#1E293B">
             <i data-lucide="graduation-cap" class="w-3.5 h-3.5"></i> Skillmentor.pk
         </div>
         <h1 class="text-3xl font-extrabold text-ink">Revenue Dashboard</h1>
@@ -47,7 +47,7 @@
             </div>
             <button onclick="handleAuth()" id="auth-btn" class="btn-primary w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2"><i data-lucide="log-in" class="w-4 h-4"></i> Sign In</button>
             <div class="flex items-center justify-end text-sm">
-                <button id="forgot-link" onclick="handleForgotPassword()" class="t-muted hover:text-[#B8860B] font-medium whitespace-nowrap">Forgot password?</button>
+                <button id="forgot-link" onclick="handleForgotPassword()" class="t-muted hover:text-[#1E293B] font-medium whitespace-nowrap">Forgot password?</button>
             </div>
             <div class="relative flex items-center justify-center my-1">
                 <div class="absolute inset-0 flex items-center"><div class="w-full border-t line"></div></div>
@@ -64,12 +64,12 @@
 </div>
 
 <!-- ================= APP ================= -->
-<div id="app-container" class="relative z-10 max-w-[1400px] mx-auto px-4 md:px-6 py-6 hidden-view">
+<div id="app-container" class="relative z-10 max-w-[1600px] mx-auto px-4 md:px-6 py-6 hidden-view">
     <div class="app-shell">
         <!-- ============ Left sidebar ============ -->
         <aside class="sidebar">
             <div class="flex items-center gap-2.5 px-2 pb-3 mb-1 border-b line">
-                <div id="brand-logo" class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center font-black text-sm shrink-0" style="background:linear-gradient(135deg,#E14B5E,#B8860B)">SM</div>
+                <div id="brand-logo" class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center font-black text-sm shrink-0" style="background:linear-gradient(135deg,#E14B5E,#1E293B)">SM</div>
                 <div class="min-w-0">
                     <h1 id="brand-name" class="text-base font-extrabold text-ink leading-tight truncate">Skillmentor.pk</h1>
                     <p class="t-muted text-[11px]">Revenue &amp; Profit</p>
@@ -88,19 +88,21 @@
                 <button data-tab="share"      onclick="setTab('share')"      class="tab-btn"><i data-lucide="handshake" class="w-4 h-4"></i> Profit Share</button>
                 <button data-tab="futurefund" onclick="setTab('futurefund')" class="tab-btn"><i data-lucide="piggy-bank" class="w-4 h-4"></i> Future Fund</button>
             </div>
+        </aside>
 
-            <!-- Sidebar footer: sync + account -->
-            <div class="mt-auto pt-3 border-t line">
-                <span id="sync-pill" class="badge mb-2" style="color:#B8860B"><span class="rounded-full" style="width:6px;height:6px;background:#B8860B"></span>synced</span>
+        <!-- ============ Main ============ -->
+        <main class="main">
+            <!-- Top bar: account (top-right) -->
+            <div class="flex justify-end mb-4">
                 <div class="relative">
-                    <button onclick="toggleProfileMenu(event)" class="btn-ghost w-full flex items-center gap-2.5 p-2 rounded-xl text-left">
-                        <span id="profile-avatar" title="Account" class="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm shrink-0" style="background:linear-gradient(135deg,#E14B5E,#c23a4d)">?</span>
-                        <span class="min-w-0 flex-1"><span id="pm-name-mini" class="block text-ink text-sm font-semibold truncate">Account</span><span id="pm-role-mini" class="block t-muted text-[11px] truncate">—</span></span>
-                        <i data-lucide="chevron-up" class="w-4 h-4 t-muted shrink-0"></i>
-                    </button>
-                    <div id="profile-menu" class="hidden-view absolute left-0 right-0 bottom-full mb-2 rounded-2xl p-2 z-[80] border line pop-in" style="background:var(--navy-2);box-shadow:0 24px 50px -14px rgba(0,22,50,0.35)">
+                    <button onclick="toggleProfileMenu(event)" id="profile-avatar" title="Account"
+                        class="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm border line hover:border-[#E14B5E] transition shadow-sm" style="background:linear-gradient(135deg,#E14B5E,#c23a4d)">?</button>
+                    <div id="profile-menu" class="hidden-view absolute right-0 mt-2 w-64 rounded-2xl p-2 z-[80] border line pop-in" style="background:var(--navy-2);box-shadow:0 24px 50px -14px rgba(0,22,50,0.35)">
                         <div class="px-3 py-3 border-b line mb-1">
-                            <p id="pm-name" class="text-ink font-bold text-sm truncate">—</p>
+                            <div class="flex items-center justify-between gap-2">
+                                <p id="pm-name" class="text-ink font-bold text-sm truncate">—</p>
+                                <span id="sync-pill" class="badge shrink-0" style="color:#1E293B"><span class="rounded-full" style="width:6px;height:6px;background:#1E293B"></span>synced</span>
+                            </div>
                             <p id="pm-email" class="t-muted text-xs truncate">—</p>
                             <span id="pm-role" class="badge mt-2 inline-block" style="background:#E14B5E22;color:#E14B5E">—</span>
                         </div>
@@ -113,15 +115,12 @@
                     </div>
                 </div>
             </div>
-        </aside>
 
-        <!-- ============ Main ============ -->
-        <main class="main">
             <!-- No-access screen -->
             <div id="noaccess" class="hidden-view glass rounded-3xl p-10 text-center max-w-lg mx-auto mt-10">
-                <div class="w-16 h-16 rounded-2xl mx-auto mb-4 icon-tile" style="background:rgba(184,134,11,0.12);color:#B8860B"><i data-lucide="lock" class="w-7 h-7"></i></div>
+                <div class="w-16 h-16 rounded-2xl mx-auto mb-4 icon-tile" style="background:rgba(184,134,11,0.12);color:#1E293B"><i data-lucide="lock" class="w-7 h-7"></i></div>
                 <h2 class="text-xl font-bold text-ink mb-2">Access pending</h2>
-                <p class="t-muted text-sm mb-5">You're signed in, but access is <b style="color:#B8860B">pending the owner's approval</b>. You'll be able to view the dashboard once the owner assigns you a role. Refresh after you're approved.</p>
+                <p class="t-muted text-sm mb-5">You're signed in, but access is <b style="color:#1E293B">pending the owner's approval</b>. You'll be able to view the dashboard once the owner assigns you a role. Refresh after you're approved.</p>
                 <button onclick="signOutUser()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70 inline-flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> Sign out</button>
             </div>
 

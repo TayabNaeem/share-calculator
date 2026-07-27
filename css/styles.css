@@ -10,7 +10,7 @@
     --navy-3:      #f4f6fb;   /* secondary surface */
     --coral:       #E14B5E;
     --coral-dark:  #c23a4d;
-    --gold:        #B8860B;   /* readable gold on white (fills + text) */
+    --gold:        #1E293B;   /* readable gold on white (fills + text) */
     --ink:         #001632;
     --muted:       #5b6577;
     --stroke:      rgba(0,22,50,0.10);
@@ -35,7 +35,7 @@ h1,h2,h3,.font-display { font-family: 'Sora','Inter',sans-serif; letter-spacing:
     filter: blur(150px); opacity: .10;
 }
 .aurora::before { background: radial-gradient(circle, var(--coral), transparent 62%); top: -18vw; left: -12vw; }
-.aurora::after  { background: radial-gradient(circle, #FFCD57, transparent 62%); bottom: -22vw; right: -14vw; }
+.aurora::after  { background: radial-gradient(circle, #1E293B, transparent 62%); bottom: -22vw; right: -14vw; }
 .grid-overlay { display: none; }
 
 /* Card */
@@ -118,25 +118,25 @@ select.field option { background-color: #fff; color: var(--ink); }
     background: var(--surface); border: 1px solid var(--stroke); border-radius: 22px;
     padding: 16px 12px; display: flex; flex-direction: column; gap: 6px;
     box-shadow: 0 1px 2px rgba(0,22,50,0.04), 0 10px 30px -22px rgba(0,22,50,0.3);
-    max-height: calc(100vh - 40px);
+    height: calc(100vh - 40px);
 }
 .main { flex: 1; min-width: 0; }
 @media (max-width: 900px) {
     .app-shell { flex-direction: column; }
-    .sidebar { width: 100%; position: static; max-height: none; top: 0; }
+    .sidebar { width: 100%; position: static; height: auto; top: 0; }
     .tab-nav { flex-direction: row !important; overflow-x: auto; }
     .tab-btn { flex-shrink: 0; }
 }
 
 /* Tabs — vertical stacked menu in the sidebar */
-.tab-nav { display:flex; flex-direction: column; gap:3px; overflow-y: auto; }
+.tab-nav { display:flex; flex-direction: column; gap:3px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .tab-btn { position: relative; display:inline-flex; align-items:center; gap:11px; padding:10px 14px; border-radius:12px;
     color: var(--muted); font-weight:600; font-size:.9rem; white-space:nowrap; transition: color .18s, background .18s; text-align:left; }
 .tab-btn svg { transition: color .18s, transform .18s; }
 .tab-btn:hover { color: var(--ink); background: rgba(0,22,50,0.045); }
 .tab-btn.active { color:#fff; background: linear-gradient(135deg, var(--coral), var(--coral-dark));
     box-shadow: 0 10px 22px -12px rgba(225,75,94,0.9); }
-.tab-btn.active svg { color: #FFCD57; }
+.tab-btn.active svg { color: #1E293B; }
 
 .num { font-variant-numeric: tabular-nums; }
 

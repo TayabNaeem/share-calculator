@@ -1,6 +1,6 @@
 /* =====================================================================
    ui.js — icons, rendering, navigation, tabs, modals, report
-   Palette only: navy #001632 · coral #E14B5E · gold #FFCD57 · white
+   Palette only: navy #001632 · coral #E14B5E · gold #1E293B · white
    ===================================================================== */
 
 /* ---------- Icons ---------- */
@@ -177,7 +177,7 @@ function viewStudents(){
                 </div>
             </td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openStudentModal('${s.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="openStudentModal('${s.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteStudent('${s.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`;
@@ -388,7 +388,7 @@ function viewOneOnOne(){
                 </div>
             </td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="editStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="editStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`;
@@ -403,7 +403,7 @@ function viewOneOnOne(){
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('user-round','w-8 h-8 text-[#FFCD57]')}<span>No 1-on-1 students yet. Add a student and set <b class="t-coral">Session type → 1-on-1</b>.</span></div></td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('user-round','w-8 h-8 text-[#1E293B]')}<span>No 1-on-1 students yet. Add a student and set <b class="t-coral">Session type → 1-on-1</b>.</span></div></td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -436,7 +436,7 @@ function viewPhysical(){
                 </div>
             </td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="editStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="editStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteStudentFrom('${b.id}','${s.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`;
@@ -498,7 +498,7 @@ function viewInstallments(){
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="8" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('circle-check-big','w-8 h-8 text-[#FFCD57]')}<span>No pending balances. Everyone is fully paid.</span></div></td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="8" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('circle-check-big','w-8 h-8 text-[#1E293B]')}<span>No pending balances. Everyone is fully paid.</span></div></td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -589,7 +589,7 @@ function viewPrevious(){
             <td class="text-right num ${num(e.pending)>0?'t-coral':'t-muted'} font-semibold">${money(e.pending)}</td>
             <td class="text-right num text-ink font-semibold">${money(num(e.received)+num(e.pending))}</td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openPrevModal('${e.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="openPrevModal('${e.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deletePrevEntry('${e.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`).join('');
@@ -675,7 +675,7 @@ function viewRefunds(){
             <td class="t-muted">${esc(r.reason)||'—'}</td>
             <td class="text-right num t-coral font-semibold">${money(r.amount)}</td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openRefundModal('${r.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="openRefundModal('${r.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteRefund('${r.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`).join('');
@@ -794,7 +794,7 @@ function viewFutureFund(){
             <td class="t-muted">${esc(e.date)||'—'}</td>
             <td class="text-right num t-gold font-semibold">${money(e.amount)}</td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openFundEntry('addition','${e.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="openFundEntry('addition','${e.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteFundEntry('addition','${e.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`).join('');
@@ -804,7 +804,7 @@ function viewFutureFund(){
             <td class="t-muted">${esc(e.date)||'—'}</td>
             <td class="text-right num t-coral font-semibold">− ${money(e.amount)}</td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openFundEntry('expense','${e.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="openFundEntry('expense','${e.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteFundEntry('expense','${e.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`).join('');
@@ -912,7 +912,7 @@ function otherPaymentsSection(){
             <td class="t-muted">${esc(o.date)||'—'}</td>
             <td class="text-right num t-gold font-semibold">${money(o.amount)}</td>
             <td class="text-right whitespace-nowrap">
-                <button onclick="openOtherModal('${o.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="openOtherModal('${o.id}')" class="edit-only icon-btn hover:text-[#1E293B]" style="width:30px;height:30px">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deleteOther('${o.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px">${ic('trash-2','w-4 h-4')}</button>
             </td>
         </tr>`).join('');
@@ -1014,7 +1014,7 @@ function viewSummary(){
     const bars = netByBatch.map(({b, net}) => `
         <div class="flex flex-col items-center gap-2 flex-1 min-w-[54px]">
             <div class="w-full flex items-end justify-center" style="height:150px">
-                <div class="w-9 rounded-t-lg" style="height:${Math.max(4,Math.round(net/maxBar*150))}px;background:linear-gradient(180deg,${COLOR.gold},#e6b23e)"></div>
+                <div class="w-9 rounded-t-lg" style="height:${Math.max(4,Math.round(net/maxBar*150))}px;background:linear-gradient(180deg,${COLOR.gold},#1E293B)"></div>
             </div>
             <span class="text-[11px] font-bold t-gold num">${money(net).replace('Rs ','')}</span>
             <span class="text-xs t-muted font-medium">${esc(b.name)}</span>

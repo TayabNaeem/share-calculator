@@ -61,7 +61,7 @@ window.handleForgotPassword = async () => {
     if (!email) { error.innerText = "Type your email in the box above, then click Forgot password."; return; }
     try {
         await sendPasswordResetEmail(auth, email);
-        error.style.color = '#FFCD57';
+        error.style.color = '#1E293B';
         error.innerText = `Password reset link sent to ${email}. Check your inbox (and spam).`;
     } catch (e) { error.innerText = friendlyErr(e); }
 };
@@ -178,7 +178,7 @@ window.__queueSave = () => {
 };
 function setSync(ok, label){
     const p = el('sync-pill'); if(!p) return;
-    const c = ok ? "#FFCD57" : "#E14B5E";
+    const c = ok ? "#1E293B" : "#E14B5E";
     p.innerHTML = `<span class="rounded-full" style="width:6px;height:6px;background:${c}"></span>${ok ? "synced" : (label||"offline")}`;
     p.style.color = c;
 }
@@ -258,14 +258,14 @@ window.openManageUsers = () => {
 function renderManageUsers(){
     const admins = membersData.admins||[], viewers = membersData.viewers||[];
     const row = (email, role) => {
-        const c = role==='admin' ? '#E14B5E' : '#FFCD57';
+        const c = role==='admin' ? '#E14B5E' : '#1E293B';
         return `
         <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl glass">
             <div class="min-w-0"><p class="text-sm text-white truncate">${escHtml(email)}</p>
                 <span class="badge" style="background:${c}22;color:${c}">${role}</span></div>
             <div class="flex items-center gap-1 shrink-0">
                 <button onclick="setMemberRole('${escJs(email)}','${role==='admin'?'viewer':'admin'}')" class="text-xs text-white/80 btn-ghost px-2.5 py-1.5 rounded-lg hover:text-white">Make ${role==='admin'?'viewer':'admin'}</button>
-                <button onclick="resetMemberPassword('${escJs(email)}')" class="icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Send password reset email"><i data-lucide="key-round" class="w-4 h-4"></i></button>
+                <button onclick="resetMemberPassword('${escJs(email)}')" class="icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Send password reset email"><i data-lucide="key-round" class="w-4 h-4"></i></button>
                 <button onclick="removeMember('${escJs(email)}')" class="icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Remove user"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             </div>
         </div>`;
@@ -277,14 +277,14 @@ function renderManageUsers(){
         <div class="mb-4">
             <p class="text-xs font-bold t-gold uppercase tracking-wide mb-2">Pending approvals (${pending.length})</p>
             <div class="space-y-2">${pending.map(r=>`
-                <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style="background:#FFCD5714;border:1px solid #FFCD5733">
+                <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style="background:#1E293B14;border:1px solid #1E293B33">
                     <div class="min-w-0">
                         <p class="text-sm text-white truncate">${escHtml(r.name||'(no name)')} <span class="badge" style="background:rgba(255,255,255,0.08);color:var(--muted)">${r.provider==='google.com'?'Google':'Email'}</span></p>
                         <p class="text-xs t-muted truncate">${escHtml(r.email||'')}</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
                         <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','admin')" class="text-xs btn-primary px-2.5 py-1 rounded-lg font-bold">Approve · Admin</button>
-                        <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','viewer')" class="text-xs btn-ghost text-[#FFCD57] px-2.5 py-1 rounded-lg font-bold">Viewer</button>
+                        <button onclick="approveRequest('${escJs(r.id)}','${escJs((r.email||'').toLowerCase())}','viewer')" class="text-xs btn-ghost text-[#1E293B] px-2.5 py-1 rounded-lg font-bold">Viewer</button>
                         <button onclick="dismissRequest('${escJs(r.id)}')" class="icon-btn hover:text-[#E14B5E]" style="width:28px;height:28px" title="Dismiss"><i data-lucide="x" class="w-4 h-4"></i></button>
                     </div>
                 </div>`).join('')}</div>
@@ -353,7 +353,7 @@ window.createUserAccount = async () => {
         if (role === 'admin') admins.push(email); else viewers.push(email);
         await setDoc(membersRef, { admins, viewers }); membersData = { admins, viewers };
         renderManageUsers();
-        const e2 = el('mu-err'); if (e2) { e2.style.color = '#FFCD57'; e2.innerText = `Login created for ${email} — they can sign in now as ${role}.`; }
+        const e2 = el('mu-err'); if (e2) { e2.style.color = '#1E293B'; e2.innerText = `Login created for ${email} — they can sign in now as ${role}.`; }
     } catch(e){
         const e2 = el('mu-err'); if (e2) { e2.style.color = ''; e2.innerText = friendlyErr(e); }
         const b2 = el('mu-create-btn'); if (b2){ b2.disabled = false; b2.innerText = "Create login"; }

@@ -28,7 +28,7 @@ window.APP_CONFIG = { OWNER_EMAIL, FIREBASE_CONFIG };
 
 /* Palette-locked accent colours (only navy / coral / gold / white) */
 const COLOR = {
-    gold:  '#B8860B',   // positive · received (readable gold on white)
+    gold:  '#1E293B',   // positive · received (readable gold on white)
     coral: '#E14B5E',   // attention · pending · primary
     white: '#475569',   // neutral accent (slate) on white
 };
@@ -46,7 +46,7 @@ const COURSES = [
 const COURSE_NAME = Object.fromEntries(COURSES.map(c => [c.id, c.name]));
 
 const BUNDLES = [
-    { id:'single', name:'Single Course', count:1, accent:'#B8860B' },
+    { id:'single', name:'Single Course', count:1, accent:'#1E293B' },
     { id:'double', name:'Double Bundle', count:2, accent:'#E14B5E' },
     { id:'triple', name:'Triple Bundle', count:3, accent:'#475569' },
 ];
