@@ -104,10 +104,10 @@ function renderBatchBar(){
         <button onclick="setBatch('${b.id}')" ondblclick="renameBatch('${b.id}')"
             draggable="true" ondragstart="batchDragStart(event,'${b.id}')" ondragover="batchDragOver(event)" ondrop="batchDrop(event,'${b.id}')"
             title="${b.shareSettled?'Profit distributed / settled':''}"
-            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-grab active:cursor-grabbing ${b.id===activeBatchId?'btn-primary':'btn-ghost t-muted hover:text-white'}">
+            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap cursor-grab active:cursor-grabbing ${b.id===activeBatchId?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}">
             ${esc(b.name)}${b.shareSettled?`<span style="color:${b.id===activeBatchId?'#fff':COLOR.gold}">${ic('badge-check','w-3.5 h-3.5')}</span>`:''}
         </button>`).join('')
-        + `<button onclick="addBatch()" class="edit-only inline-flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-bold t-coral btn-ghost hover:text-white transition">${ic('plus','w-4 h-4')} Batch</button>`;
+        + `<button onclick="addBatch()" class="edit-only inline-flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-bold t-coral btn-ghost hover:text-[#001632] transition">${ic('plus','w-4 h-4')} Batch</button>`;
 }
 
 /* ---------- KPI strip ---------- */
@@ -123,8 +123,8 @@ function renderKpis(){
         <div class="glass card-hover rounded-2xl p-5 relative overflow-hidden">
             <div class="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-15 blur-xl" style="background:${c.color}"></div>
             <div class="icon-tile w-10 h-10 mb-3" style="background:${c.color}22;color:${c.color}">${ic(c.icon,'w-5 h-5')}</div>
-            <p class="text-2xl font-extrabold text-white num tracking-tight">${c.val}</p>
-            <p class="text-xs font-semibold text-white/80 mt-1">${c.label}</p>
+            <p class="text-2xl font-extrabold text-ink num tracking-tight">${c.val}</p>
+            <p class="text-xs font-semibold text-ink-70 mt-1">${c.label}</p>
             <p class="text-xs t-muted">${c.sub}</p>
         </div>`).join('');
 }
@@ -133,7 +133,7 @@ function renderKpis(){
 function miniStat(label, val, color){
     return `<div class="rounded-xl p-4" style="background:${color}14;border:1px solid ${color}33">
         <p class="text-xs font-semibold" style="color:${color}">${label}</p>
-        <p class="text-lg font-extrabold text-white num mt-0.5">${val}</p></div>`;
+        <p class="text-lg font-extrabold text-ink num mt-0.5">${val}</p></div>`;
 }
 function rpSummary(count, countLabel, rec, pen){
     return `<div class="grid grid-cols-3 gap-3 mb-6">
@@ -164,15 +164,15 @@ function viewStudents(){
         return `
         <tr>
             <td class="t-muted num">${i+1}</td>
-            <td class="font-semibold text-white whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
-            <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
+            <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
+            <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
-            <td class="text-white/85">${esc(programLabel(s))}</td>
+            <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
             <td class="text-right num ${onInst?'t-coral':'t-muted'} font-semibold">${money(s.feePending)}</td>
             <td class="min-w-[120px]">
                 <div class="flex items-center gap-2">
-                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
+                    <div class="flex-1 h-1.5 rounded-full fill-2 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
                     <span class="text-xs t-muted num">${pct}%</span>
                 </div>
             </td>
@@ -188,12 +188,12 @@ function viewStudents(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
-                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Students</h2>
+                <h2 class="text-xl font-bold text-ink">${esc(b.name)} — Students</h2>
                 <p class="t-muted text-sm">${b.students.length} enrolled · <span class="t-gold">${money(rec)}</span> received · <span class="t-coral">${money(pen)}</span> pending</p>
             </div>
             <div class="flex gap-2">
-                <button onclick="openBatchModal()" class="edit-only btn-ghost px-3.5 py-2.5 rounded-xl text-sm font-semibold text-white/80 hover:text-white inline-flex items-center gap-1.5">${ic('pencil','w-4 h-4')} Edit batch</button>
-                <button onclick="deleteBatch('${b.id}')" class="edit-only btn-ghost px-3.5 py-2.5 rounded-xl text-sm font-semibold text-white/80 hover:text-[#E14B5E] inline-flex items-center gap-1.5">${ic('trash-2','w-4 h-4')} Delete</button>
+                <button onclick="openBatchModal()" class="edit-only btn-ghost px-3.5 py-2.5 rounded-xl text-sm font-semibold text-ink-70 hover:text-[#001632] inline-flex items-center gap-1.5">${ic('pencil','w-4 h-4')} Edit batch</button>
+                <button onclick="deleteBatch('${b.id}')" class="edit-only btn-ghost px-3.5 py-2.5 rounded-xl text-sm font-semibold text-ink-70 hover:text-[#E14B5E] inline-flex items-center gap-1.5">${ic('trash-2','w-4 h-4')} Delete</button>
                 <button onclick="openStudentModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('user-plus','w-4 h-4')} Add Student</button>
             </div>
         </div>
@@ -224,7 +224,7 @@ function courseChecksHtml(selected){
     return COURSES.map(c => `
         <label class="flex items-center gap-2 px-3 py-2 rounded-lg glass cursor-pointer text-sm">
             <input type="checkbox" class="course-chk accent-[#E14B5E]" value="${c.id}" ${(selected||[]).includes(c.id)?'checked':''}>
-            <span class="text-white/85">${c.name}</span>
+            <span class="text-ink-90">${c.name}</span>
         </label>`).join('');
 }
 function bundlePicker(type){
@@ -268,9 +268,9 @@ window.closeModal = () => { document.getElementById('modal-root').innerHTML = ''
 function tabModal(title, bodyHtml){
     document.getElementById('modal-root').innerHTML = `
     <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,7,18,0.72);backdrop-filter:blur(4px)" onclick="if(event.target===this)closeModal()">
-        <div class="rounded-3xl p-6 md:p-8 w-full max-w-2xl my-6 pop-in border border-white/10" style="background:var(--navy-2);box-shadow:0 40px 80px -30px rgba(0,0,0,0.9)">
+        <div class="rounded-3xl p-6 md:p-8 w-full max-w-2xl my-6 pop-in border line" style="background:var(--navy-2);box-shadow:0 40px 80px -30px rgba(0,0,0,0.9)">
             <div class="flex items-center justify-between mb-5">
-                <h3 class="text-lg font-bold text-white">${title}</h3>
+                <h3 class="text-lg font-bold text-ink">${title}</h3>
                 <button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             ${bodyHtml}
@@ -286,8 +286,8 @@ window.openStudentModal = (id) => {
     const s = editing ? JSON.parse(JSON.stringify(editing)) : { sessionType:'batch', mode:'online', bundleType:'single', courses:[], feePaid:'', feePending:'', name:'', contact:'', date:'' };
     const st = s.sessionType === '1on1' ? '1on1' : 'batch';
     const md = s.mode === 'physical' ? 'physical' : 'online';
-    const sBtn = (val,label) => `<button type="button" data-session="${val}" onclick="setSessionType('${val}')" class="session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${st===val?'btn-primary':'btn-ghost t-muted hover:text-white'}">${label}</button>`;
-    const mBtn = (val,label) => `<button type="button" data-mode="${val}" onclick="setMode('${val}')" class="mode-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${md===val?'btn-primary':'btn-ghost t-muted hover:text-white'}">${label}</button>`;
+    const sBtn = (val,label) => `<button type="button" data-session="${val}" onclick="setSessionType('${val}')" class="session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${st===val?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}">${label}</button>`;
+    const mBtn = (val,label) => `<button type="button" data-mode="${val}" onclick="setMode('${val}')" class="mode-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${md===val?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}">${label}</button>`;
     tabModal(`${editing?'Edit':'Add'} Student · <span class="t-coral">${esc(b.name)}</span>`, `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -316,7 +316,7 @@ window.openStudentModal = (id) => {
             <div><label class="text-xs font-semibold t-coral">Fee Pending</label><input id="m-pending" type="number" class="field mt-1" value="${s.feePending}" placeholder="0"></div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
             <button onclick="saveStudent('${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add student'}</button>
         </div>`);
 };
@@ -324,14 +324,14 @@ window.setSessionType = (val) => {
     document.getElementById('m-session').value = val;
     document.querySelectorAll('.session-btn').forEach(b => {
         const on = b.dataset.session === val;
-        b.className = `session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${on?'btn-primary':'btn-ghost t-muted hover:text-white'}`;
+        b.className = `session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${on?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}`;
     });
 };
 window.setMode = (val) => {
     document.getElementById('m-mode').value = val;
     document.querySelectorAll('.mode-btn').forEach(b => {
         const on = b.dataset.mode === val;
-        b.className = `mode-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${on?'btn-primary':'btn-ghost t-muted hover:text-white'}`;
+        b.className = `mode-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${on?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}`;
     });
 };
 window.saveStudent = (id) => {
@@ -374,16 +374,16 @@ function viewOneOnOne(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
         <tr>
-            <td class="font-semibold text-white">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
-            <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
-            <td><span class="badge glass text-white/80">${esc(b.name)}</span></td>
+            <td class="font-semibold text-ink">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
+            <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
             <td>${bundleBadge(s.bundleType)}</td>
-            <td class="text-white/85">${esc(programLabel(s))}</td>
+            <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
             <td class="text-right num ${num(s.feePending)>0?'t-coral':'t-muted'} font-semibold">${money(s.feePending)}</td>
             <td class="min-w-[120px]">
                 <div class="flex items-center gap-2">
-                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
+                    <div class="flex-1 h-1.5 rounded-full fill-2 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
                     <span class="text-xs t-muted num">${pct}%</span>
                 </div>
             </td>
@@ -396,7 +396,7 @@ function viewOneOnOne(){
     return `
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="mb-6">
-            <h2 class="text-xl font-bold text-white">1-on-1 Training</h2>
+            <h2 class="text-xl font-bold text-ink">1-on-1 Training</h2>
             <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches)</p>
         </div>
         ${rpSummary(list.length, '1-on-1 Students', rec, pen)}
@@ -422,16 +422,16 @@ function viewPhysical(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
         <tr>
-            <td class="font-semibold text-white whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
-            <td class="text-white/70 num">${esc(s.contact)||'—'}</td>
-            <td><span class="badge glass text-white/80">${esc(b.name)}</span></td>
+            <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
+            <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
+            <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
-            <td class="text-white/85">${esc(programLabel(s))}</td>
+            <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
             <td class="text-right num ${num(s.feePending)>0?'t-coral':'t-muted'} font-semibold">${money(s.feePending)}</td>
             <td class="min-w-[120px]">
                 <div class="flex items-center gap-2">
-                    <div class="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
+                    <div class="flex-1 h-1.5 rounded-full fill-2 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
                     <span class="text-xs t-muted num">${pct}%</span>
                 </div>
             </td>
@@ -444,7 +444,7 @@ function viewPhysical(){
     return `
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="mb-6">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">${ic('map-pin','w-5 h-5 text-[#E14B5E]')} Physical Batch Students</h2>
+            <h2 class="text-xl font-bold text-ink flex items-center gap-2">${ic('map-pin','w-5 h-5 text-[#E14B5E]')} Physical Batch Students</h2>
             <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches)</p>
         </div>
         ${rpSummary(list.length, 'Physical Students', rec, pen)}
@@ -471,15 +471,15 @@ function viewInstallments(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
         return `
         <tr>
-            <td class="font-semibold text-white">${esc(s.name)}</td>
-            <td class="text-white/70 num">${esc(s.contact)||'<span class=\'t-muted\'>—</span>'}</td>
-            <td><span class="badge glass text-white/80">${esc(b.name)}</span></td>
-            <td class="text-white/70">${esc(programLabel(s))}</td>
+            <td class="font-semibold text-ink">${esc(s.name)}</td>
+            <td class="text-ink-70 num">${esc(s.contact)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
+            <td class="text-ink-70">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold">${money(s.feePaid)}</td>
             <td class="text-right num t-coral font-bold">${money(s.feePending)}</td>
             <td class="min-w-[140px]">
                 <div class="flex items-center gap-2">
-                    <div class="flex-1 h-2 rounded-full bg-white/10 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
+                    <div class="flex-1 h-2 rounded-full fill-2 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
                     <span class="text-xs t-muted num">${pct}%</span>
                 </div>
             </td>
@@ -491,7 +491,7 @@ function viewInstallments(){
     return `
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="mb-6">
-            <h2 class="text-xl font-bold text-white">Students on Installments</h2>
+            <h2 class="text-xl font-bold text-ink">Students on Installments</h2>
             <p class="t-muted text-sm">${list.length} students with a pending balance (all batches)</p>
         </div>
         ${rpSummary(list.length, 'On installments', totalPaid, totalPending)}
@@ -532,22 +532,22 @@ function viewBreakdown(){
         const rows = groups.map(g => `
             <tr>
                 <td class="num t-muted">${g.count}</td>
-                <td class="text-white font-medium">${esc(g.program)}</td>
+                <td class="text-ink font-medium">${esc(g.program)}</td>
                 <td class="text-right num t-gold">${money(g.received)}</td>
                 <td class="text-right num t-coral">${money(g.pending)}</td>
-                <td class="text-right num text-white/85 font-semibold">${money(g.received+g.pending)}</td>
+                <td class="text-right num text-ink-90 font-semibold">${money(g.received+g.pending)}</td>
             </tr>`).join('');
         return `
         <div class="glass rounded-2xl overflow-hidden">
             <div class="px-5 py-3 flex items-center justify-between" style="background:${bd.accent}14;border-bottom:1px solid var(--stroke)">
-                <h3 class="font-bold text-white flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:${bd.accent}"></span>${bd.name}</h3>
+                <h3 class="font-bold text-ink flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:${bd.accent}"></span>${bd.name}</h3>
                 <span class="text-xs t-muted">${students.length} student${students.length!==1?'s':''}</span>
             </div>
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Students</th><th>Course / Combo</th><th class="text-right">Received</th><th class="text-right">Pending</th><th class="text-right">Total</th></tr></thead>
                 <tbody>${rows || `<tr><td colspan="5" class="text-center t-muted py-6">No ${bd.name.toLowerCase()} enrolments.</td></tr>`}</tbody>
-                ${groups.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
-                    <td colspan="2" class="text-white/80">Subtotal</td>
+                ${groups.length ? `<tfoot><tr class="font-bold text-ink" style="border-top:2px solid var(--stroke)">
+                    <td colspan="2" class="text-ink-70">Subtotal</td>
                     <td class="text-right num t-gold">${money(rec)}</td>
                     <td class="text-right num t-coral">${money(pen)}</td>
                     <td class="text-right num">${money(rec+pen)}</td></tr></tfoot>`:''}
@@ -560,7 +560,7 @@ function viewBreakdown(){
     return `
     <div class="space-y-5">
         <div class="glass rounded-3xl p-6 md:p-7">
-            <h2 class="text-xl font-bold text-white">${esc(b.name)} — Bundle &amp; Course Breakdown</h2>
+            <h2 class="text-xl font-bold text-ink">${esc(b.name)} — Bundle &amp; Course Breakdown</h2>
             <p class="t-muted text-sm">Auto-calculated from student records. Previous-batch carry-forward is managed in the <button onclick="setTab('previous')" class="t-coral font-semibold">Previous Batch</button> tab.</p>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
                 ${miniStat('Received (this batch)', money(rec), COLOR.gold)}
@@ -584,10 +584,10 @@ function viewPrevious(){
         <tr>
             <td class="t-muted num">${i+1}</td>
             <td>${bundleBadge(e.bundleType)}</td>
-            <td class="text-white/85">${esc(programLabel(e))}</td>
+            <td class="text-ink-90">${esc(programLabel(e))}</td>
             <td class="text-right num t-gold font-semibold">${money(e.received)}</td>
             <td class="text-right num ${num(e.pending)>0?'t-coral':'t-muted'} font-semibold">${money(e.pending)}</td>
-            <td class="text-right num text-white font-semibold">${money(num(e.received)+num(e.pending))}</td>
+            <td class="text-right num text-ink font-semibold">${money(num(e.received)+num(e.pending))}</td>
             <td class="text-right whitespace-nowrap">
                 <button onclick="openPrevModal('${e.id}')" class="edit-only icon-btn hover:text-[#FFCD57]" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
                 <button onclick="deletePrevEntry('${e.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
@@ -597,7 +597,7 @@ function viewPrevious(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
-                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Previous Batch Payments</h2>
+                <h2 class="text-xl font-bold text-ink">${esc(b.name)} — Previous Batch Payments</h2>
                 <p class="t-muted text-sm">Payments carried in from earlier batches. Course-wise, no student details needed.</p>
             </div>
             <button onclick="openPrevModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Payment</button>
@@ -638,7 +638,7 @@ window.openPrevModal = (id) => {
             <div><label class="text-xs font-semibold t-coral">Amount Pending</label><input id="m-pending" type="number" class="field mt-1" value="${e.pending}" placeholder="0"></div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
             <button onclick="savePrevEntry('${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add payment'}</button>
         </div>`);
 };
@@ -667,10 +667,10 @@ function viewRefunds(){
     const rows = list.map((r,i) => `
         <tr>
             <td class="t-muted num">${i+1}</td>
-            <td class="font-semibold text-white">${esc(r.name)||'<span class=\'t-muted\'>—</span>'}</td>
-            <td class="text-white/70 num">${esc(r.contact)||'—'}</td>
+            <td class="font-semibold text-ink">${esc(r.name)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-ink-70 num">${esc(r.contact)||'—'}</td>
             <td>${bundleBadge(r.bundleType)}</td>
-            <td class="text-white/85">${esc(programLabel(r))}</td>
+            <td class="text-ink-90">${esc(programLabel(r))}</td>
             <td class="t-muted">${esc(r.date)||'—'}</td>
             <td class="t-muted">${esc(r.reason)||'—'}</td>
             <td class="text-right num t-coral font-semibold">${money(r.amount)}</td>
@@ -683,7 +683,7 @@ function viewRefunds(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
-                <h2 class="text-xl font-bold text-white">${esc(b.name)} — Fee Refunds</h2>
+                <h2 class="text-xl font-bold text-ink">${esc(b.name)} — Fee Refunds</h2>
                 <p class="t-muted text-sm">${list.length} refund${list.length!==1?'s':''} · <span class="t-coral font-semibold">${money(total)}</span> returned</p>
             </div>
             <button onclick="openRefundModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Refund</button>
@@ -721,7 +721,7 @@ window.openRefundModal = (id) => {
             <div><label class="text-xs font-semibold t-muted">Reason (optional)</label><input id="m-reason" class="field mt-1" value="${esc(r.reason)}" placeholder="e.g. Withdrew"></div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
             <button onclick="saveRefund('${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save changes':'Add refund'}</button>
         </div>`);
 };
@@ -749,8 +749,8 @@ window.saveRefund = (id) => {
 function plainModal(title, inner){
     document.getElementById('modal-root').innerHTML = `
     <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,7,18,0.72);backdrop-filter:blur(4px)" onclick="if(event.target===this)closeModal()">
-        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border border-white/10" style="background:var(--navy-2)">
-            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">${title}</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border line" style="background:var(--navy-2)">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-ink">${title}</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
             ${inner}
         </div>
     </div>`;
@@ -785,12 +785,12 @@ function viewFutureFund(){
     const bal = auto + adds - exp;
     const batchRows = state.batches.map(b => {
         const f = shareBreakdown(b).future;
-        return `<tr><td class="font-semibold text-white">${esc(b.name)}</td><td class="text-right num t-gold">${money(f)}</td></tr>`;
+        return `<tr><td class="font-semibold text-ink">${esc(b.name)}</td><td class="text-right num t-gold">${money(f)}</td></tr>`;
     }).join('');
     const addRows = (state.fund.additions||[]).map(e => `
         <tr>
-            <td class="text-white">${esc(e.note)||'<span class=\'t-muted\'>—</span>'}</td>
-            <td class="text-white/70">${e.batchId?esc(batchName(e.batchId)):'<span class="t-muted">General</span>'}</td>
+            <td class="text-ink">${esc(e.note)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-ink-70">${e.batchId?esc(batchName(e.batchId)):'<span class="t-muted">General</span>'}</td>
             <td class="t-muted">${esc(e.date)||'—'}</td>
             <td class="text-right num t-gold font-semibold">${money(e.amount)}</td>
             <td class="text-right whitespace-nowrap">
@@ -800,7 +800,7 @@ function viewFutureFund(){
         </tr>`).join('');
     const expRows = (state.fund.expenses||[]).map(e => `
         <tr>
-            <td class="text-white">${esc(e.note)||'<span class=\'t-muted\'>—</span>'}</td>
+            <td class="text-ink">${esc(e.note)||'<span class=\'t-muted\'>—</span>'}</td>
             <td class="t-muted">${esc(e.date)||'—'}</td>
             <td class="text-right num t-coral font-semibold">− ${money(e.amount)}</td>
             <td class="text-right whitespace-nowrap">
@@ -826,7 +826,7 @@ function viewFutureFund(){
 
         <div class="glass rounded-3xl p-6 md:p-8">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div><h2 class="text-lg font-bold text-white">Manual additions</h2><p class="t-muted text-sm">Extra contributions you add to the fund.</p></div>
+                <div><h2 class="text-lg font-bold text-ink">Manual additions</h2><p class="t-muted text-sm">Extra contributions you add to the fund.</p></div>
                 <button onclick="openFundEntry('addition')" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add</button>
             </div>
             <div class="overflow-x-auto"><table class="tbl w-full text-sm">
@@ -837,7 +837,7 @@ function viewFutureFund(){
 
         <div class="glass rounded-3xl p-6 md:p-8">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div><h2 class="text-lg font-bold text-white">Expenses</h2><p class="t-muted text-sm">Deducted from the fund balance.</p></div>
+                <div><h2 class="text-lg font-bold text-ink">Expenses</h2><p class="t-muted text-sm">Deducted from the fund balance.</p></div>
                 <button onclick="openFundEntry('expense')" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add</button>
             </div>
             <div class="overflow-x-auto"><table class="tbl w-full text-sm">
@@ -847,12 +847,12 @@ function viewFutureFund(){
         </div>
 
         <div class="glass rounded-3xl p-6 md:p-8">
-            <h2 class="text-lg font-bold text-white mb-1">Future fund by batch (36%)</h2>
+            <h2 class="text-lg font-bold text-ink mb-1">Future fund by batch (36%)</h2>
             <p class="t-muted text-sm mb-4">Auto-calculated from each batch's profit share.</p>
             <div class="overflow-x-auto"><table class="tbl w-full text-sm">
                 <thead><tr><th>Batch</th><th class="text-right">Future Fund</th></tr></thead>
                 <tbody>${batchRows}</tbody>
-                <tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)"><td>All batches</td><td class="text-right num t-gold">${money(auto)}</td></tr></tfoot>
+                <tfoot><tr class="font-bold text-ink" style="border-top:2px solid var(--stroke)"><td>All batches</td><td class="text-right num t-gold">${money(auto)}</td></tr></tfoot>
             </table></div>
         </div>
     </div>`;
@@ -873,7 +873,7 @@ window.openFundEntry = (type, id) => {
             </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
             <button onclick="saveFundEntry('${type}','${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save':'Add'}</button>
         </div>`);
 };
@@ -907,8 +907,8 @@ function otherPaymentsSection(){
     const total = otherPaymentsTotal();
     const rows = list.map(o => `
         <tr>
-            <td class="font-semibold text-white">${o.batchId?esc(batchName(o.batchId)):'<span class="t-muted">General</span>'}</td>
-            <td class="text-white/70">${esc(o.note)||'—'}</td>
+            <td class="font-semibold text-ink">${o.batchId?esc(batchName(o.batchId)):'<span class="t-muted">General</span>'}</td>
+            <td class="text-ink-70">${esc(o.note)||'—'}</td>
             <td class="t-muted">${esc(o.date)||'—'}</td>
             <td class="text-right num t-gold font-semibold">${money(o.amount)}</td>
             <td class="text-right whitespace-nowrap">
@@ -920,7 +920,7 @@ function otherPaymentsSection(){
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div>
-                <h2 class="text-lg font-bold text-white">Other Payments</h2>
+                <h2 class="text-lg font-bold text-ink">Other Payments</h2>
                 <p class="t-muted text-sm">Lump sums for batches with no student records · <span class="t-gold font-semibold">${money(total)}</span> total (added to Total Received; batch-tied ones also count in that batch's Profit Share).</p>
             </div>
             <button onclick="openOtherModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add Payment</button>
@@ -928,7 +928,7 @@ function otherPaymentsSection(){
         <div class="overflow-x-auto"><table class="tbl w-full text-sm">
             <thead><tr><th>Batch</th><th>Note</th><th>Date</th><th class="text-right">Amount</th><th></th></tr></thead>
             <tbody>${rows || `<tr><td colspan="5" class="text-center t-muted py-8">No other payments recorded. Click <b class="t-coral">Add Payment</b>.</td></tr>`}</tbody>
-            ${list.length ? `<tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)"><td colspan="3">Total</td><td class="text-right num t-gold">${money(total)}</td><td></td></tr></tfoot>`:''}
+            ${list.length ? `<tfoot><tr class="font-bold text-ink" style="border-top:2px solid var(--stroke)"><td colspan="3">Total</td><td class="text-right num t-gold">${money(total)}</td><td></td></tr></tfoot>`:''}
         </table></div>
     </div>`;
 }
@@ -946,7 +946,7 @@ window.openOtherModal = (id) => {
             </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
             <button onclick="saveOther('${editing?editing.id:''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing?'Save':'Add'}</button>
         </div>`);
 };
@@ -985,14 +985,14 @@ function viewSummary(){
         const pRec=batchPrevReceived(b), pPen=batchPrevPending(b);
         gRec+=rec; gPen+=pen; gRef+=ref; gPrev+=pRec; gPrevPen+=pPen;
         return `<tr>
-            <td class="font-semibold text-white">${esc(b.name)}</td>
+            <td class="font-semibold text-ink">${esc(b.name)}</td>
             <td class="text-right num t-muted">${b.students.length}</td>
             <td class="text-right num t-gold">${money(rec)}</td>
             <td class="text-right num ${pen>0?'t-coral':'t-muted'}">${money(pen)}</td>
             <td class="text-right num ${pRec>0?'t-gold':'t-muted'}">${money(pRec)}</td>
             <td class="text-right num ${pPen>0?'t-coral':'t-muted'}">${money(pPen)}</td>
             <td class="text-right num ${ref>0?'t-coral':'t-muted'}">${money(ref)}</td>
-            <td class="text-right num text-white font-bold">${money(rec+pen+pRec+pPen)}</td>
+            <td class="text-right num text-ink font-bold">${money(rec+pen+pRec+pPen)}</td>
         </tr>`;
     }).join('');
 
@@ -1001,11 +1001,11 @@ function viewSummary(){
     const maxRec = Math.max(1, ...progs.map(p=>p.received));
     const progRows = progs.map(p => `
         <tr>
-            <td class="text-white font-medium">${esc(p.program)}</td>
+            <td class="text-ink font-medium">${esc(p.program)}</td>
             <td class="text-right num t-muted">${p.count}</td>
             <td class="text-right num t-gold">${money(p.received)}</td>
             <td class="text-right num t-coral">${money(p.pending)}</td>
-            <td class="w-40"><div class="h-2 rounded-full bg-white/10 overflow-hidden"><div style="width:${Math.round(p.received/maxRec*100)}%;background:linear-gradient(90deg,${COLOR.coral},${COLOR.gold})" class="h-full"></div></div></td>
+            <td class="w-40"><div class="h-2 rounded-full fill-2 overflow-hidden"><div style="width:${Math.round(p.received/maxRec*100)}%;background:linear-gradient(90deg,${COLOR.coral},${COLOR.gold})" class="h-full"></div></div></td>
         </tr>`).join('');
 
     // Net distributable per batch (same figure as the Profit Share tab)
@@ -1024,7 +1024,7 @@ function viewSummary(){
     <div class="space-y-5">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div class="glass rounded-3xl p-6 lg:col-span-2">
-                <h2 class="text-lg font-bold text-white mb-1">All Batches Overview</h2>
+                <h2 class="text-lg font-bold text-ink mb-1">All Batches Overview</h2>
                 <p class="t-muted text-sm mb-4">Net distributable amount per batch (the total in each batch — same figure as Profit Share).</p>
                 <div class="flex items-end gap-3 justify-around px-2">${bars}</div>
                 <div class="flex items-center gap-4 mt-4 text-xs t-muted">
@@ -1032,7 +1032,7 @@ function viewSummary(){
                 </div>
             </div>
             <div class="glass rounded-3xl p-6 flex flex-col justify-center">
-                <h2 class="text-lg font-bold text-white mb-4">Grand Totals</h2>
+                <h2 class="text-lg font-bold text-ink mb-4">Grand Totals</h2>
                 <div class="space-y-3">
                     ${sumRow('Received', money(gRec), COLOR.gold)}
                     ${otherPaymentsTotal()>0?sumRow('Other payments', money(otherPaymentsTotal()), COLOR.gold):''}
@@ -1040,12 +1040,12 @@ function viewSummary(){
                     ${sumRow('Refunded', money(gRef), COLOR.coral)}
                     ${sumRow('Prev. received', money(gPrev), COLOR.gold)}
                     ${sumRow('Prev. pending', money(gPrevPen), COLOR.coral)}
-                    <div class="border-t border-white/10 pt-3">${sumRow('Grand total (rec+pend)', money(gRec+otherPaymentsTotal()+gPen), COLOR.gold, true)}</div>
+                    <div class="border-t line pt-3">${sumRow('Grand total (rec+pend)', money(gRec+otherPaymentsTotal()+gPen), COLOR.gold, true)}</div>
                 </div>
             </div>
         </div>
         <div class="glass rounded-3xl p-6 md:p-8">
-            <h2 class="text-lg font-bold text-white mb-1">Batch Summary</h2>
+            <h2 class="text-lg font-bold text-ink mb-1">Batch Summary</h2>
             <p class="t-muted text-sm mb-4">Each batch's own figures — its students plus its previous-batch carry-forward — kept separate per batch.</p>
             <div class="overflow-x-auto">
             <table class="tbl w-full text-sm whitespace-nowrap">
@@ -1056,7 +1056,7 @@ function viewSummary(){
                     <th class="text-right">Refunded</th><th class="text-right">Total</th>
                 </tr></thead>
                 <tbody>${batchRows}</tbody>
-                <tfoot><tr class="font-bold text-white" style="border-top:2px solid var(--stroke)">
+                <tfoot><tr class="font-bold text-ink" style="border-top:2px solid var(--stroke)">
                     <td>All batches</td><td class="text-right num t-muted">${all.length}</td>
                     <td class="text-right num t-gold">${money(gRec)}</td>
                     <td class="text-right num t-coral">${money(gPen)}</td>
@@ -1069,7 +1069,7 @@ function viewSummary(){
             </div>
         </div>
         <div class="glass rounded-3xl p-6 md:p-8">
-            <h2 class="text-lg font-bold text-white mb-1">Total Received by Training Program</h2>
+            <h2 class="text-lg font-bold text-ink mb-1">Total Received by Training Program</h2>
             <p class="t-muted text-sm mb-4">Across all batches (single courses &amp; bundles counted as their combo).</p>
             <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
@@ -1107,7 +1107,7 @@ function viewShare(){
             <label class="block text-xs font-semibold t-muted mb-1">${c.name}${SHARE_LEAD[c.id]?` · <span class="t-coral">${SHARE_LEAD[c.id]}</span>`:''}</label>
             <div class="field readonly-field">
                 <span class="t-muted text-xs font-semibold">Rs</span>
-                <span class="num font-bold ${per[c.id]>0?'text-white':(per[c.id]<0?'t-coral':'t-muted')}">${Math.round(per[c.id]).toLocaleString()}</span>
+                <span class="num font-bold ${per[c.id]>0?'text-ink':(per[c.id]<0?'t-coral':'t-muted')}">${Math.round(per[c.id]).toLocaleString()}</span>
             </div>
         </div>`).join('');
     const pct = num(b.settledPct);
@@ -1116,10 +1116,10 @@ function viewShare(){
     const settledSub = (amt) => pct>0 ? `<div class="text-[11px] t-gold num">settled ${money(amt*pct/100)}</div>` : '';
     const remLabel = pct>0 ? `<span class="text-[10px] t-muted uppercase ml-1">left</span>` : '';
     const teamRows = TEAM.map(name => `
-        <div class="flex justify-between items-center bg-white/5 px-4 py-2.5 rounded-xl text-sm">
-            <span class="text-white/80">${name}</span>
+        <div class="flex justify-between items-center fill-1 px-4 py-2.5 rounded-xl text-sm">
+            <span class="text-ink-70">${name}</span>
             <div class="text-right leading-tight">
-                <span id="res-${cssId(name)}" class="font-bold text-white num">${money(rem(d.team[name]))}</span>${remLabel}
+                <span id="res-${cssId(name)}" class="font-bold text-ink num">${money(rem(d.team[name]))}</span>${remLabel}
                 ${settledSub(d.team[name])}
             </div>
         </div>`).join('');
@@ -1133,18 +1133,18 @@ function viewShare(){
                 ${pct>0 && b.settledAt?`<p class="text-xs t-muted">${esc(b.settledAt)}</p>`:''}
             </div>
             <div class="grid grid-cols-5 gap-1.5">
-                ${[0,25,50,75,100].map(p=>`<button onclick="setSettledPct(${p})" class="px-2 py-1.5 rounded-lg text-xs font-bold transition ${pct===p?'btn-primary':'btn-ghost t-muted hover:text-white'}">${p===0?'None':p+'%'}</button>`).join('')}
+                ${[0,25,50,75,100].map(p=>`<button onclick="setSettledPct(${p})" class="px-2 py-1.5 rounded-lg text-xs font-bold transition ${pct===p?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}">${p===0?'None':p+'%'}</button>`).join('')}
             </div>
         </div>`;
     const settledSummary = pct>0 ? `
-        <div class="flex items-end justify-between mb-4 pb-4 border-b border-white/10 relative z-20">
+        <div class="flex items-end justify-between mb-4 pb-4 border-b line relative z-20">
             <div>
                 <p class="text-[11px] t-muted uppercase tracking-wide">Settled altogether (${pct}%)</p>
                 <p class="text-3xl font-extrabold t-gold num leading-none mt-1">${money(d.total*pct/100)}</p>
             </div>
             <div class="text-right">
                 <p class="text-[11px] t-muted uppercase tracking-wide">Remaining</p>
-                <p class="text-xl font-bold text-white num mt-1">${money(rem(d.total))}</p>
+                <p class="text-xl font-bold text-ink num mt-1">${money(rem(d.total))}</p>
             </div>
         </div>` : '';
     return `
@@ -1152,7 +1152,7 @@ function viewShare(){
         ${fully ? `<div class="absolute -right-16 top-7 rotate-45 text-center pointer-events-none" style="width:220px;background:${COLOR.gold}26;border:1px solid ${COLOR.gold}55"><span class="text-xs font-extrabold tracking-widest uppercase" style="color:${COLOR.gold}">Distributed</span></div>` : ''}
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
-                <h2 class="text-xl font-bold text-white flex items-center gap-2 flex-wrap">${esc(b.name)} — Profit Distribution ${settledBadge}</h2>
+                <h2 class="text-xl font-bold text-ink flex items-center gap-2 flex-wrap">${esc(b.name)} — Profit Distribution ${settledBadge}</h2>
                 <p class="t-muted text-sm">Owner 40% · Future fund 36% · Team pool 24% (service lead earns 12%).</p>
             </div>
             <div class="flex items-center gap-3">
@@ -1176,7 +1176,7 @@ function viewShare(){
                 <p class="text-xs t-muted mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
             </div>
-            <div class="rounded-2xl p-6 text-white relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${pct>0?COLOR.gold+'66':'var(--stroke)'}">
+            <div class="rounded-2xl p-6 text-ink relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${pct>0?COLOR.gold+'66':'var(--stroke)'}">
                 ${fully ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="rotate-[-12deg] px-6 py-2 rounded-xl text-lg font-extrabold uppercase tracking-widest" style="color:${COLOR.gold};border:3px solid ${COLOR.gold}88;background:${COLOR.gold}12">Settled</span></div>` : ''}
                 <div class="flex items-center justify-between mb-5">
                     <h3 class="text-lg font-bold">Distribution</h3>
@@ -1185,8 +1185,8 @@ function viewShare(){
                 ${settleControl}
                 ${settledSummary}
                 <div class="space-y-3">
-                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${remLabel}${settledSub(d.owner)}</div></div>
-                    <div class="flex justify-between items-center border-b border-white/10 pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${remLabel}${settledSub(d.future)}</div></div>
+                    <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${remLabel}${settledSub(d.owner)}</div></div>
+                    <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${remLabel}${settledSub(d.future)}</div></div>
                     <p class="text-xs t-muted pt-2 pb-1">Team pool (24%)</p>
                     ${teamRows}
                 </div>
@@ -1276,13 +1276,13 @@ window.openBatchModal = () => {
     const b = activeBatch();
     document.getElementById('modal-root').innerHTML = `
     <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,7,18,0.72);backdrop-filter:blur(4px)" onclick="if(event.target===this)closeModal()">
-        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border border-white/10" style="background:var(--navy-2)">
-            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">Edit batch</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border line" style="background:var(--navy-2)">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-ink">Edit batch</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
             <label class="text-xs font-semibold t-muted">Batch name / number</label>
             <input id="batch-name" class="field mt-1" value="${esc(b.name)}" placeholder="e.g. Batch 6" onkeydown="if(event.key==='Enter')saveBatchName()">
             <p class="text-xs t-muted mt-2">Shown on the batch tab, summaries and reports.</p>
             <div class="flex justify-end gap-2 mt-6">
-                <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+                <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
                 <button onclick="saveBatchName()" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Save</button>
             </div>
         </div>
@@ -1303,11 +1303,11 @@ window.openCompanyProfile = () => {
     const favicon = (state && state.favicon) || '';
     const preview = logo
         ? `<img id="cp-preview" src="${logo}" class="w-full h-full object-cover">`
-        : `<span id="cp-preview" class="text-white font-black text-lg">${esc((name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2)||'SM').toUpperCase())}</span>`;
+        : `<span id="cp-preview" class="text-ink font-black text-lg">${esc((name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2)||'SM').toUpperCase())}</span>`;
     document.getElementById('modal-root').innerHTML = `
     <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,7,18,0.72);backdrop-filter:blur(4px)" onclick="if(event.target===this)closeModal()">
-        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border border-white/10" style="background:var(--navy-2)">
-            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">Company profile</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <div class="rounded-3xl p-6 md:p-8 w-full max-w-md my-6 pop-in border line" style="background:var(--navy-2)">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-ink">Company profile</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
             <div class="flex items-center gap-4 mb-5">
                 <div id="cp-logo-box" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0" style="background:linear-gradient(135deg,var(--coral),var(--gold))">${preview}</div>
                 <div class="flex-1">
@@ -1319,9 +1319,9 @@ window.openCompanyProfile = () => {
                 </div>
             </div>
             <div class="flex items-center gap-4 mb-5">
-                <div id="cp-fav-box" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 border border-white/10" style="background:rgba(255,255,255,0.05)">${favicon?`<img id="cp-fav-preview" src="${favicon}" class="w-8 h-8 object-contain">`:`<span id="cp-fav-preview" class="t-muted">${ic('image','w-6 h-6')}</span>`}</div>
+                <div id="cp-fav-box" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 border line" style="background:rgba(255,255,255,0.05)">${favicon?`<img id="cp-fav-preview" src="${favicon}" class="w-8 h-8 object-contain">`:`<span id="cp-fav-preview" class="t-muted">${ic('image','w-6 h-6')}</span>`}</div>
                 <div class="flex-1">
-                    <label class="btn-ghost inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm cursor-pointer text-white/85">${ic('upload','w-4 h-4')} Upload favicon
+                    <label class="btn-ghost inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm cursor-pointer text-ink-90">${ic('upload','w-4 h-4')} Upload favicon
                         <input type="file" accept="image/*" class="hidden" onchange="handleFaviconPick(event)">
                     </label>
                     ${favicon ? `<button onclick="removeFavicon()" class="ml-2 text-xs t-coral hover:brightness-125 font-semibold">Remove</button>` : ``}
@@ -1332,7 +1332,7 @@ window.openCompanyProfile = () => {
             <input id="cp-name" class="field mt-1" value="${esc(name)}" placeholder="Company name">
             <p id="cp-err" class="t-coral text-sm mt-2"></p>
             <div class="flex justify-end gap-2 mt-6">
-                <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>
+                <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
                 <button onclick="saveCompanyProfile()" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Save</button>
             </div>
         </div>

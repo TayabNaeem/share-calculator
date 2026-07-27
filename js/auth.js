@@ -196,8 +196,11 @@ function updateProfileUI(){
     const name = u.displayName || (u.email ? u.email.split('@')[0] : 'User');
     el('pm-name').innerText = name;
     el('pm-email').innerText = u.email || '';
-    el('pm-role').innerText = { owner:'Owner', admin:'Admin', viewer:'Viewer', none:'No access' }[currentRole] || '';
+    const roleLabel = { owner:'Owner', admin:'Admin', viewer:'Viewer', none:'No access' }[currentRole] || '';
+    el('pm-role').innerText = roleLabel;
     el('profile-avatar').innerText = initials(name);
+    const mini = el('pm-name-mini'); if (mini) mini.innerText = name;
+    const rmini = el('pm-role-mini'); if (rmini) rmini.innerText = roleLabel;
 }
 function modalShell(title, body, footer, wide){
     document.getElementById('modal-root').innerHTML = `
