@@ -191,6 +191,26 @@ document.addEventListener('click', (e) => {
         m.classList.add('hidden-view');
 });
 function initials(n){ return (String(n||'?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('') || '?').toUpperCase(); }
+// Resize an image file to a small square-ish avatar data URL (JPEG) so it fits in the auth photoURL.
+function fileToAvatarDataURL(file, max=128){
+    return new Promise((resolve, reject) => {
+        const rd = new FileReader();
+        rd.onerror = () => reject(new Error('read'));
+        rd.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('decode'));
+            img.onload = () => {
+                const s = Math.min(max / img.width, max / img.height, 1);
+                const w = Math.max(1, Math.round(img.width * s)), h = Math.max(1, Math.round(img.height * s));
+                const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+                cv.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(cv.toDataURL('image/jpeg', 0.72));
+            };
+            img.src = rd.result;
+        };
+        rd.readAsDataURL(file);
+    });
+}
 function updateProfileUI(){
     const u = currentUser; if (!u) return;
     const name = u.displayName || (u.email ? u.email.split('@')[0] : 'User');
@@ -198,33 +218,66 @@ function updateProfileUI(){
     el('pm-email').innerText = u.email || '';
     const roleLabel = { owner:'Owner', admin:'Admin', viewer:'Viewer', none:'No access' }[currentRole] || '';
     el('pm-role').innerText = roleLabel;
-    el('profile-avatar').innerText = initials(name);
+    const av = el('profile-avatar');
+    if (u.photoURL) av.innerHTML = `<img src="${u.photoURL}" alt="" class="w-full h-full object-cover">`;
+    else { av.innerHTML = ''; av.innerText = initials(name); }
     const mini = el('pm-name-mini'); if (mini) mini.innerText = name;
     const rmini = el('pm-role-mini'); if (rmini) rmini.innerText = roleLabel;
 }
 function modalShell(title, body, footer, wide){
     document.getElementById('modal-root').innerHTML = `
     <div class="fixed inset-0 z-[90] flex items-start md:items-center justify-center p-4 overflow-y-auto" style="background:rgba(0,7,18,0.72);backdrop-filter:blur(4px)" onclick="if(event.target===this)closeModal()">
-        <div class="rounded-3xl p-6 md:p-8 w-full ${wide?'max-w-lg':'max-w-md'} my-6 pop-in border border-white/10" style="background:var(--navy-2);box-shadow:0 40px 80px -30px rgba(0,0,0,0.9)">
-            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-white">${title}</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <div class="rounded-3xl p-6 md:p-8 w-full ${wide?'max-w-lg':'max-w-md'} my-6 pop-in border line" style="background:var(--navy-2);box-shadow:0 40px 80px -30px rgba(0,22,50,0.35)">
+            <div class="flex items-center justify-between mb-5"><h3 class="text-lg font-bold text-ink">${title}</h3><button onclick="closeModal()" class="icon-btn"><i data-lucide="x" class="w-5 h-5"></i></button></div>
             ${body}
-            <div class="flex justify-end gap-2 mt-6"><button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-white/80">Cancel</button>${footer||''}</div>
+            <div class="flex justify-end gap-2 mt-6"><button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>${footer||''}</div>
         </div>
     </div>`;
     if (window.refreshIcons) window.refreshIcons();
 }
+// pendingPhoto: undefined = leave photo unchanged · '' = remove photo · dataURL = set new photo
+let pendingPhoto;
 window.openEditName = () => {
     el('profile-menu').classList.add('hidden-view');
-    modalShell('Edit name', `
+    pendingPhoto = undefined;
+    const name = currentUser?.displayName || '';
+    const cur = currentUser?.photoURL || '';
+    modalShell('Edit profile', `
+        <div class="flex items-center gap-4 mb-5">
+            <div id="pf-avatar" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-lg shrink-0" style="background:linear-gradient(135deg,#E14B5E,#c23a4d);color:#fff">
+                ${cur ? `<img src="${cur}" alt="" class="w-full h-full object-cover">` : escHtml(initials(name))}
+            </div>
+            <div class="flex flex-col items-start gap-1.5">
+                <button type="button" onclick="document.getElementById('pf-photo').click()" class="btn-ghost px-3 py-2 rounded-xl text-sm font-semibold text-ink-70 inline-flex items-center gap-1.5"><i data-lucide="upload" class="w-4 h-4"></i> Upload photo</button>
+                <button type="button" id="pf-remove" onclick="removeProfilePhoto()" class="text-xs t-coral ${cur ? '' : 'hidden-view'}">Remove photo</button>
+                <input type="file" id="pf-photo" accept="image/*" class="hidden-view" onchange="onProfilePhoto(event)">
+            </div>
+        </div>
         <div><label class="text-xs font-semibold t-muted">Display name</label>
-        <input id="pf-name" class="field mt-1" value="${escHtml(currentUser?.displayName||'')}" placeholder="Your name"></div>
+        <input id="pf-name" class="field mt-1" value="${escHtml(name)}" placeholder="Your name"></div>
         <p id="pf-err" class="t-coral text-sm mt-2"></p>`,
         `<button onclick="doEditName()" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Save</button>`);
 };
+window.onProfilePhoto = async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const err = el('pf-err'); if (err) err.innerText = '';
+    try {
+        pendingPhoto = await fileToAvatarDataURL(f);
+        const box = el('pf-avatar'); if (box) box.innerHTML = `<img src="${pendingPhoto}" alt="" class="w-full h-full object-cover">`;
+        const rm = el('pf-remove'); if (rm) rm.classList.remove('hidden-view');
+    } catch(_){ if (err) err.innerText = "Couldn't read that image — try another file."; }
+};
+window.removeProfilePhoto = () => {
+    pendingPhoto = '';
+    const box = el('pf-avatar'); if (box) box.innerText = initials((el('pf-name')?.value) || currentUser?.displayName || '');
+    const rm = el('pf-remove'); if (rm) rm.classList.add('hidden-view');
+};
 window.doEditName = async () => {
     const name = el('pf-name').value.trim();
-    try { await updateProfile(currentUser, { displayName: name }); updateProfileUI(); window.closeModal(); }
-    catch(e){ el('pf-err').innerText = friendlyErr(e); }
+    const profile = { displayName: name };
+    if (pendingPhoto !== undefined) profile.photoURL = pendingPhoto; // '' clears, dataURL sets
+    try { await updateProfile(currentUser, profile); updateProfileUI(); window.closeModal(); }
+    catch(e){ el('pf-err').innerText = "Couldn't save" + (pendingPhoto ? " — the photo may be too large. Try a smaller image." : "") + " (" + friendlyErr(e) + ")"; }
 };
 window.openChangePassword = () => {
     el('profile-menu').classList.add('hidden-view');
@@ -261,10 +314,10 @@ function renderManageUsers(){
         const c = role==='admin' ? '#E14B5E' : '#1E293B';
         return `
         <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl glass">
-            <div class="min-w-0"><p class="text-sm text-white truncate">${escHtml(email)}</p>
+            <div class="min-w-0"><p class="text-sm text-ink truncate">${escHtml(email)}</p>
                 <span class="badge" style="background:${c}22;color:${c}">${role}</span></div>
             <div class="flex items-center gap-1 shrink-0">
-                <button onclick="setMemberRole('${escJs(email)}','${role==='admin'?'viewer':'admin'}')" class="text-xs text-white/80 btn-ghost px-2.5 py-1.5 rounded-lg hover:text-white">Make ${role==='admin'?'viewer':'admin'}</button>
+                <button onclick="setMemberRole('${escJs(email)}','${role==='admin'?'viewer':'admin'}')" class="text-xs text-ink-70 btn-ghost px-2.5 py-1.5 rounded-lg hover:text-ink">Make ${role==='admin'?'viewer':'admin'}</button>
                 <button onclick="resetMemberPassword('${escJs(email)}')" class="icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Send password reset email"><i data-lucide="key-round" class="w-4 h-4"></i></button>
                 <button onclick="removeMember('${escJs(email)}')" class="icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Remove user"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             </div>
@@ -279,7 +332,7 @@ function renderManageUsers(){
             <div class="space-y-2">${pending.map(r=>`
                 <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style="background:#1E293B14;border:1px solid #1E293B33">
                     <div class="min-w-0">
-                        <p class="text-sm text-white truncate">${escHtml(r.name||'(no name)')} <span class="badge" style="background:rgba(255,255,255,0.08);color:var(--muted)">${r.provider==='google.com'?'Google':'Email'}</span></p>
+                        <p class="text-sm text-ink truncate">${escHtml(r.name||'(no name)')} <span class="badge" style="background:rgba(0,22,50,0.06);color:var(--muted)">${r.provider==='google.com'?'Google':'Email'}</span></p>
                         <p class="text-xs t-muted truncate">${escHtml(r.email||'')}</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
@@ -291,10 +344,10 @@ function renderManageUsers(){
         </div>` : '';
     modalShell('Manage users', `
         <div class="mb-4 p-3 rounded-xl" style="background:#E14B5E14;border:1px solid #E14B5E33">
-            <p class="text-xs t-muted">Owner · full control</p><p class="text-sm text-white font-semibold truncate">${escHtml(OWNER_EMAIL)}</p>
+            <p class="text-xs t-muted">Owner · full control</p><p class="text-sm text-ink font-semibold truncate">${escHtml(OWNER_EMAIL)}</p>
         </div>
         ${pendingHtml}
-        <p class="text-xs font-bold text-white/80 uppercase tracking-wide mb-2">Create a login</p>
+        <p class="text-xs font-bold text-ink-70 uppercase tracking-wide mb-2">Create a login</p>
         <p class="text-xs t-muted mb-3">You set their email &amp; password. <b class="t-coral">Admin</b> can manage payments; <b class="t-gold">Viewer</b> can only view.</p>
         <div class="space-y-2 mb-4">
             <input id="mu-name" class="field" placeholder="Full name">
@@ -312,7 +365,7 @@ function renderManageUsers(){
             </div>
             <button onclick="createUserAccount()" id="mu-create-btn" class="btn-primary w-full py-2.5 rounded-xl font-bold">Create login</button>
         </div>
-        <p class="text-xs font-bold text-white/80 uppercase tracking-wide mb-2">Team members</p>
+        <p class="text-xs font-bold text-ink-70 uppercase tracking-wide mb-2">Team members</p>
         <div id="mu-list" class="space-y-2 max-h-56 overflow-y-auto">${list}</div>
         <p id="mu-err" class="t-coral text-sm mt-2"></p>`, '', true);
 }

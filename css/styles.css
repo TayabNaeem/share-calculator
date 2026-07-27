@@ -138,11 +138,11 @@ select.field option { background-color: #fff; color: var(--ink); }
     box-shadow: 0 10px 22px -12px rgba(225,75,94,0.9); }
 .tab-btn.active svg { color: #1E293B; }
 
-.num { font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Tables */
 table { border-collapse: separate; border-spacing: 0; }
-.tbl th { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight:700; text-align: left; }
+.tbl th { font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight:700; text-align: left; white-space: nowrap; }
 .tbl th.text-right { text-align: right; }
 .tbl td, .tbl th { padding: 13px 14px; border-bottom: 1px solid var(--stroke); vertical-align: middle; }
 .tbl tbody tr { transition: background .15s; }
