@@ -12,6 +12,10 @@ window.refreshIcons = refreshIcons;
     if (mr && window.MutationObserver) new MutationObserver(refreshIcons).observe(mr, { childList: true });
 })();
 
+/* Today, in the same format the settled-date stamp uses (e.g. "3 Aug 2026").
+   New records default to this so a forgotten date is never left blank. */
+function todayStr(){ return new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
+
 /* =====================================================================
    NAVIGATION
    ===================================================================== */
@@ -285,7 +289,7 @@ function tabModal(title, bodyHtml){
 window.openStudentModal = (id) => {
     const b = activeBatch();
     const editing = id ? b.students.find(x=>x.id===id) : null;
-    const s = editing ? JSON.parse(JSON.stringify(editing)) : { sessionType:'batch', mode:'online', bundleType:'single', courses:[], feePaid:'', feePending:'', name:'', contact:'', date:'' };
+    const s = editing ? JSON.parse(JSON.stringify(editing)) : { sessionType:'batch', mode:'online', bundleType:'single', courses:[], feePaid:'', feePending:'', name:'', contact:'', date:todayStr() };
     const st = s.sessionType === '1on1' ? '1on1' : 'batch';
     const md = s.mode === 'physical' ? 'physical' : 'online';
     const sBtn = (val,label) => `<button type="button" data-session="${val}" onclick="setSessionType('${val}')" class="session-btn flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${st===val?'btn-primary':'btn-ghost t-muted hover:text-[#001632]'}">${label}</button>`;
@@ -346,7 +350,8 @@ window.saveStudent = (id) => {
         mode: document.getElementById('m-mode').value === 'physical' ? 'physical' : 'online',
         bundleType: document.getElementById('m-bundle').value,
         courses,
-        date: document.getElementById('m-date').value.trim(),
+        // blank on a NEW record falls back to today; an existing record keeps whatever it has
+        date: document.getElementById('m-date').value.trim() || (id ? '' : todayStr()),
         feePaid: num(document.getElementById('m-paid').value),
         feePending: num(document.getElementById('m-pending').value),
     };
@@ -706,7 +711,7 @@ window.deleteRefund = (id) => {
 window.openRefundModal = (id) => {
     const b = activeBatch();
     const editing = id ? (b.refunds||[]).find(r=>r.id===id) : null;
-    const r = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], name:'', contact:'', amount:'', date:'', reason:'' };
+    const r = editing ? JSON.parse(JSON.stringify(editing)) : { bundleType:'single', courses:[], name:'', contact:'', amount:'', date:todayStr(), reason:'' };
     tabModal(`${editing?'Edit':'Add'} Refund · <span class="t-coral">${esc(b.name)}</span>`, `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="text-xs font-semibold t-muted">Student name</label><input id="m-name" class="field mt-1" value="${esc(r.name)}" placeholder="Student name"></div>
@@ -734,7 +739,7 @@ window.saveRefund = (id) => {
         name: document.getElementById('m-name').value.trim(),
         contact: document.getElementById('m-contact').value.trim(),
         bundleType: document.getElementById('m-bundle').value, courses,
-        date: document.getElementById('m-date').value.trim(),
+        date: document.getElementById('m-date').value.trim() || (id ? '' : todayStr()),
         amount: num(document.getElementById('m-amount').value),
         reason: document.getElementById('m-reason').value.trim(),
     };
@@ -864,7 +869,7 @@ window.openFundEntry = (type, id) => {
     const isExp = type === 'expense';
     const list = isExp ? state.fund.expenses : state.fund.additions;
     const editing = id ? list.find(x=>x.id===id) : null;
-    const e = editing ? JSON.parse(JSON.stringify(editing)) : { note:'', amount:'', date:'', batchId:'' };
+    const e = editing ? JSON.parse(JSON.stringify(editing)) : { note:'', amount:'', date:todayStr(), batchId:'' };
     plainModal(`${editing?'Edit':'Add'} ${isExp?'Expense':'Fund Addition'}`, `
         <div class="space-y-3">
             <div><label class="text-xs font-semibold t-muted">${isExp?'Expense':'Note'}</label><input id="fe-note" class="field mt-1" value="${esc(e.note)}" placeholder="${isExp?'e.g. Office rent':'e.g. Extra contribution'}"></div>
@@ -885,7 +890,7 @@ window.saveFundEntry = (type, id) => {
     const data = {
         note: document.getElementById('fe-note').value.trim(),
         amount: num(document.getElementById('fe-amount').value),
-        date: document.getElementById('fe-date').value.trim(),
+        date: document.getElementById('fe-date').value.trim() || (id ? '' : todayStr()),
         batchId: isExp ? '' : (document.getElementById('fund-batch').value || ''),
     };
     if (data.amount <= 0) return alert("Please enter an amount greater than 0.");
@@ -937,7 +942,7 @@ function otherPaymentsSection(){
 window.openOtherModal = (id) => {
     if (window.__getRole && window.__getRole() === 'viewer') return;
     const editing = id ? (state.otherPayments||[]).find(o=>o.id===id) : null;
-    const o = editing ? JSON.parse(JSON.stringify(editing)) : { batchId:'', note:'', amount:'', date:'' };
+    const o = editing ? JSON.parse(JSON.stringify(editing)) : { batchId:'', note:'', amount:'', date:todayStr() };
     plainModal(`${editing?'Edit':'Add'} Other Payment`, `
         <div class="space-y-3">
             <div><label class="text-xs font-semibold t-muted">Batch (tie it in to include in that batch's share)</label>${fundBatchPicker(o.batchId)}</div>
@@ -957,7 +962,7 @@ window.saveOther = (id) => {
         batchId: document.getElementById('fund-batch').value || '',
         note: document.getElementById('op-note').value.trim(),
         amount: num(document.getElementById('op-amount').value),
-        date: document.getElementById('op-date').value.trim(),
+        date: document.getElementById('op-date').value.trim() || (id ? '' : todayStr()),
     };
     if (data.amount <= 0) return alert("Please enter an amount greater than 0.");
     state.otherPayments = state.otherPayments || [];
