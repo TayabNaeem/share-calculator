@@ -21,6 +21,27 @@ function fmtTs(ts){ return ts ? new Date(num(ts)).toLocaleDateString('en-GB', { 
    timestamp, else nothing. Never guesses for records that have neither. */
 function recordDate(r){ return (r && r.date) ? r.date : fmtTs(r && r.createdAt); }
 
+/* Batch ids are minted as 'b' + Date.now() (+ up to 3 random digits), so the batch's
+   own creation time is recoverable. Returns 0 for the hard-coded seed ids and for
+   anything that doesn't decode to a plausible date. */
+function batchCreatedTs(b){
+    const m = String((b && b.id) || '').match(/^b(\d{13})/);
+    if (!m) return 0;
+    const ts = +m[1];
+    return (ts >= 1577836800000 && ts <= Date.now() + 86400000) ? ts : 0; // 2020-01-01 .. tomorrow
+}
+/* Date cell: the record's own date when it has one, otherwise an ESTIMATE from when
+   its batch was created — clearly badged, and shown only, never written to the record. */
+function dateCell(r, b){
+    const real = recordDate(r);
+    if (real) return esc(real);
+    const ts = batchCreatedTs(b);
+    if (!ts) return '—';
+    return `<span title="Estimated — no date was saved on this record, so this shows when ${esc(b.name)} was created">${esc(fmtTs(ts))} <span class="badge fill-1 t-muted" style="font-size:9px;padding:0 5px">est</span></span>`;
+}
+/* Sort key: same precedence as the cell, so estimated rows sort where they display. */
+function dateSortKey(r, b){ return recordDate(r) || fmtTs(batchCreatedTs(b)); }
+
 /* Free-text dates ("3 Aug 2026", "28 June", "2026-08-03", "28/6/26") -> sortable timestamp.
    Parsed explicitly rather than via Date.parse, whose lenient fallback reads "28 June"
    as June 2001 and happily turns junk text into 1 Jan. Anything unrecognised (or blank)
@@ -212,7 +233,7 @@ function modeBadge(mode){
    ===================================================================== */
 function viewStudents(){
     const b = activeBatch();
-    const rows = sortByDate(b.students, recordDate).map((s,i) => {
+    const rows = sortByDate(b.students, s => dateSortKey(s, b)).map((s,i) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         const onInst = num(s.feePending) > 0;
@@ -221,7 +242,7 @@ function viewStudents(){
             <td class="t-muted num">${i+1}</td>
             <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
-            <td class="t-muted num">${esc(recordDate(s))||'—'}</td>
+            <td class="t-muted num whitespace-nowrap">${dateCell(s, b)}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -427,7 +448,7 @@ function viewOneOnOne(){
     state.batches.forEach(b => b.students.forEach(s => { if (s.sessionType === '1on1') list.push({ b, s }); }));
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
-    const rows = sortByDate(list, x => recordDate(x.s)).map(({b,s}) => {
+    const rows = sortByDate(list, x => dateSortKey(x.s, x.b)).map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
@@ -435,7 +456,7 @@ function viewOneOnOne(){
             <td class="font-semibold text-ink">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
-            <td class="t-muted num">${esc(recordDate(s))||'—'}</td>
+            <td class="t-muted num whitespace-nowrap">${dateCell(s, b)}</td>
             <td>${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -477,7 +498,7 @@ function viewPhysical(){
     state.batches.forEach(b => b.students.forEach(s => { if (s.mode === 'physical') list.push({ b, s }); }));
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
-    const rows = sortByDate(list, x => recordDate(x.s)).map(({b,s}) => {
+    const rows = sortByDate(list, x => dateSortKey(x.s, x.b)).map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
@@ -485,7 +506,7 @@ function viewPhysical(){
             <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
-            <td class="t-muted num">${esc(recordDate(s))||'—'}</td>
+            <td class="t-muted num whitespace-nowrap">${dateCell(s, b)}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
