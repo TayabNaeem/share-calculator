@@ -16,6 +16,50 @@ window.refreshIcons = refreshIcons;
    New records default to this so a forgotten date is never left blank. */
 function todayStr(){ return new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
 
+/* Free-text dates ("3 Aug 2026", "28 June", "2026-08-03", "28/6/26") -> sortable timestamp.
+   Parsed explicitly rather than via Date.parse, whose lenient fallback reads "28 June"
+   as June 2001 and happily turns junk text into 1 Jan. Anything unrecognised (or blank)
+   returns null and is treated as undated. Day-first, matching the en-GB display format. */
+const MONTHS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function parseDateVal(v){
+    const str = String(v||'').trim();
+    if (!str) return null;
+    const thisYear = new Date().getFullYear();
+    const mi = (name) => MONTHS.indexOf(name.slice(0,3).toLowerCase());
+    let m;
+    if ((m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)))                       // 2026-08-03
+        return Date.UTC(+m[1], +m[2]-1, +m[3]);
+    if ((m = str.match(/^(\d{1,2})\s+([a-z]+)\.?,?\s*(\d{4})?$/i)) && mi(m[2])>=0) // 28 June [2026]
+        return Date.UTC(m[3] ? +m[3] : thisYear, mi(m[2]), +m[1]);
+    if ((m = str.match(/^([a-z]+)\.?\s+(\d{1,2}),?\s*(\d{4})?$/i)) && mi(m[1])>=0) // June 28 [2026]
+        return Date.UTC(m[3] ? +m[3] : thisYear, mi(m[1]), +m[2]);
+    if ((m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))) {        // 28/6/2026
+        const y = +m[3]; return Date.UTC(y < 100 ? y+2000 : y, +m[2]-1, +m[1]);
+    }
+    return null;
+}
+/* Enrollment date sort — display only, never reorders the stored records. */
+let enrollSort = 'none';   // 'none' | 'asc' (oldest first) | 'desc' (newest first)
+window.setEnrollSort = (v) => { enrollSort = v; render(); };
+function sortByDate(arr, getDate){
+    if (enrollSort === 'none') return arr;
+    const dir = enrollSort === 'asc' ? 1 : -1;
+    return [...arr].sort((x, y) => {
+        const a = parseDateVal(getDate(x)), b = parseDateVal(getDate(y));
+        if (a === null && b === null) return 0;
+        if (a === null) return 1;      // undated rows always sink to the bottom
+        if (b === null) return -1;
+        return (a - b) * dir;
+    });
+}
+function dateSortControl(){
+    const opt = (v, label, icon) => `<button onclick="setEnrollSort('${v}')" class="px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition ${enrollSort===v?'btn-primary':'t-muted hover:text-[#001632]'}">${icon?ic(icon,'w-3.5 h-3.5'):''}${label}</button>`;
+    return `<div class="inline-flex items-center gap-1 p-1 rounded-xl btn-ghost">
+        <span class="text-[10px] font-bold t-muted uppercase tracking-wider px-2">Date</span>
+        ${opt('none','Default')}${opt('asc','Oldest','arrow-up')}${opt('desc','Newest','arrow-down')}
+    </div>`;
+}
+
 /* =====================================================================
    NAVIGATION
    ===================================================================== */
@@ -163,7 +207,7 @@ function modeBadge(mode){
    ===================================================================== */
 function viewStudents(){
     const b = activeBatch();
-    const rows = b.students.map((s,i) => {
+    const rows = sortByDate(b.students, s => s.date).map((s,i) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         const onInst = num(s.feePending) > 0;
@@ -172,6 +216,7 @@ function viewStudents(){
             <td class="t-muted num">${i+1}</td>
             <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
+            <td class="t-muted num">${esc(s.date)||'—'}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -204,13 +249,14 @@ function viewStudents(){
             </div>
         </div>
         ${rpSummary(b.students.length, 'Students', rec, pen)}
+        <div class="flex justify-end mb-3">${dateSortControl()}</div>
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr>
-                    <th>#</th><th>Name</th><th>Contact</th><th>Bundle</th><th>Program</th>
+                    <th>#</th><th>Name</th><th>Contact</th><th>Date</th><th>Bundle</th><th>Program</th>
                     <th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th>
                 </tr></thead>
-                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-10">No students yet. Click <b class="t-coral">Add Student</b> to start.</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-10">No students yet. Click <b class="t-coral">Add Student</b> to start.</td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -376,7 +422,7 @@ function viewOneOnOne(){
     state.batches.forEach(b => b.students.forEach(s => { if (s.sessionType === '1on1') list.push({ b, s }); }));
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
-    const rows = list.map(({b,s}) => {
+    const rows = sortByDate(list, x => x.s.date).map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
@@ -384,6 +430,7 @@ function viewOneOnOne(){
             <td class="font-semibold text-ink">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
+            <td class="t-muted num">${esc(s.date)||'—'}</td>
             <td>${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -407,10 +454,11 @@ function viewOneOnOne(){
             <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches)</p>
         </div>
         ${rpSummary(list.length, '1-on-1 Students', rec, pen)}
+        <div class="flex justify-end mb-3">${dateSortControl()}</div>
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
-                <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('user-round','w-8 h-8 text-[#1E293B]')}<span>No 1-on-1 students yet. Add a student and set <b class="t-coral">Session type → 1-on-1</b>.</span></div></td></tr>`}</tbody>
+                <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('user-round','w-8 h-8 text-[#1E293B]')}<span>No 1-on-1 students yet. Add a student and set <b class="t-coral">Session type → 1-on-1</b>.</span></div></td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -424,7 +472,7 @@ function viewPhysical(){
     state.batches.forEach(b => b.students.forEach(s => { if (s.mode === 'physical') list.push({ b, s }); }));
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
-    const rows = list.map(({b,s}) => {
+    const rows = sortByDate(list, x => x.s.date).map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
@@ -432,6 +480,7 @@ function viewPhysical(){
             <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
+            <td class="t-muted num">${esc(s.date)||'—'}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -455,10 +504,11 @@ function viewPhysical(){
             <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches)</p>
         </div>
         ${rpSummary(list.length, 'Physical Students', rec, pen)}
+        <div class="flex justify-end mb-3">${dateSortControl()}</div>
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
-                <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('map-pin','w-8 h-8 text-[#E14B5E]')}<span>No physical students yet. Add a student and set <b class="t-coral">Mode → Physical</b>.</span></div></td></tr>`}</tbody>
+                <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('map-pin','w-8 h-8 text-[#E14B5E]')}<span>No physical students yet. Add a student and set <b class="t-coral">Mode → Physical</b>.</span></div></td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
