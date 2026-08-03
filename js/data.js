@@ -88,6 +88,7 @@ function normalizeFundEntry(e){
         id: e.id || ('f'+Math.random().toString(36).slice(2)),
         batchId: e.batchId || '', note: e.note || '',
         amount: num(e.amount), date: e.date || '',
+        createdAt: num(e.createdAt) || 0,
     };
 }
 function normalizeOther(o){
@@ -96,6 +97,7 @@ function normalizeOther(o){
         batchId: o.batchId || '',
         note: o.note || o.batch || '',   // migrate old free-text batch label into note
         amount: num(o.amount), date: o.date || '',
+        createdAt: num(o.createdAt) || 0,
     };
 }
 function otherForBatch(bid){ return (state.otherPayments||[]).filter(o=>o.batchId===bid).reduce((a,o)=>a+num(o.amount),0); }
@@ -115,6 +117,9 @@ function normalizeStudent(s){
         courses: Array.isArray(s.courses) ? s.courses : [],
         feePaid: num(s.feePaid), feePending: num(s.feePending),
         date: s.date || '',
+        // Machine timestamp of when the record was created. 0 = unknown (records made
+        // before this existed); never back-filled on load, so it can't invent a date.
+        createdAt: num(s.createdAt) || 0,
         installments: Array.isArray(s.installments) ? s.installments : [],
     };
 }
@@ -125,6 +130,7 @@ function normalizeRefund(r){
         bundleType: r.bundleType || 'single',
         courses: Array.isArray(r.courses) ? r.courses : [],
         amount: num(r.amount), date: r.date || '', reason: r.reason || '',
+        createdAt: num(r.createdAt) || 0,
     };
 }
 function normalizePrev(e){

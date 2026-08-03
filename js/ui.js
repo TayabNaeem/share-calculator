@@ -16,6 +16,11 @@ window.refreshIcons = refreshIcons;
    New records default to this so a forgotten date is never left blank. */
 function todayStr(){ return new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
 
+function fmtTs(ts){ return ts ? new Date(num(ts)).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : ''; }
+/* What to show/sort as a record's date: the typed date, else the captured creation
+   timestamp, else nothing. Never guesses for records that have neither. */
+function recordDate(r){ return (r && r.date) ? r.date : fmtTs(r && r.createdAt); }
+
 /* Free-text dates ("3 Aug 2026", "28 June", "2026-08-03", "28/6/26") -> sortable timestamp.
    Parsed explicitly rather than via Date.parse, whose lenient fallback reads "28 June"
    as June 2001 and happily turns junk text into 1 Jan. Anything unrecognised (or blank)
@@ -207,7 +212,7 @@ function modeBadge(mode){
    ===================================================================== */
 function viewStudents(){
     const b = activeBatch();
-    const rows = sortByDate(b.students, s => s.date).map((s,i) => {
+    const rows = sortByDate(b.students, recordDate).map((s,i) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         const onInst = num(s.feePending) > 0;
@@ -216,7 +221,7 @@ function viewStudents(){
             <td class="t-muted num">${i+1}</td>
             <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''} ${modeBadge(s.mode)}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
-            <td class="t-muted num">${esc(s.date)||'—'}</td>
+            <td class="t-muted num">${esc(recordDate(s))||'—'}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -403,7 +408,7 @@ window.saveStudent = (id) => {
     };
     if (!data.name) return alert("Please enter a name.");
     if (id) Object.assign(b.students.find(x=>x.id===id), data);
-    else b.students.push(normalizeStudent({ ...data, installments: [] }));
+    else b.students.push(normalizeStudent({ ...data, installments: [], createdAt: Date.now() }));
     save(); closeModal(); render();
 };
 
@@ -422,7 +427,7 @@ function viewOneOnOne(){
     state.batches.forEach(b => b.students.forEach(s => { if (s.sessionType === '1on1') list.push({ b, s }); }));
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
-    const rows = sortByDate(list, x => x.s.date).map(({b,s}) => {
+    const rows = sortByDate(list, x => recordDate(x.s)).map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
@@ -430,7 +435,7 @@ function viewOneOnOne(){
             <td class="font-semibold text-ink">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
-            <td class="t-muted num">${esc(s.date)||'—'}</td>
+            <td class="t-muted num">${esc(recordDate(s))||'—'}</td>
             <td>${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -472,7 +477,7 @@ function viewPhysical(){
     state.batches.forEach(b => b.students.forEach(s => { if (s.mode === 'physical') list.push({ b, s }); }));
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
-    const rows = sortByDate(list, x => x.s.date).map(({b,s}) => {
+    const rows = sortByDate(list, x => recordDate(x.s)).map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         return `
@@ -480,7 +485,7 @@ function viewPhysical(){
             <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)||'<span class=\'t-muted\'>—</span>'}${s.sessionType==='1on1'?` <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">1:1</span>`:''}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'—'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
-            <td class="t-muted num">${esc(s.date)||'—'}</td>
+            <td class="t-muted num">${esc(recordDate(s))||'—'}</td>
             <td class="whitespace-nowrap">${bundleBadge(s.bundleType)}</td>
             <td class="text-ink-90">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold font-semibold">${money(s.feePaid)}</td>
@@ -796,7 +801,7 @@ window.saveRefund = (id) => {
     if (!data.name) return alert("Please enter the student's name.");
     b.refunds = b.refunds || [];
     if (id) Object.assign(b.refunds.find(x=>x.id===id), data);
-    else b.refunds.push(normalizeRefund(data));
+    else b.refunds.push(normalizeRefund({ ...data, createdAt: Date.now() }));
     save(); closeModal(); render();
 };
 
@@ -945,7 +950,7 @@ window.saveFundEntry = (type, id) => {
     };
     if (data.amount <= 0) return alert("Please enter an amount greater than 0.");
     if (id) Object.assign(list.find(x=>x.id===id), data);
-    else list.push(normalizeFundEntry(data));
+    else list.push(normalizeFundEntry({ ...data, createdAt: Date.now() }));
     save(); closeModal(); render();
 };
 window.deleteFundEntry = (type, id) => {
@@ -1017,7 +1022,7 @@ window.saveOther = (id) => {
     if (data.amount <= 0) return alert("Please enter an amount greater than 0.");
     state.otherPayments = state.otherPayments || [];
     if (id) Object.assign(state.otherPayments.find(o=>o.id===id), data);
-    else state.otherPayments.push(normalizeOther(data));
+    else state.otherPayments.push(normalizeOther({ ...data, createdAt: Date.now() }));
     save(); closeModal(); render();
 };
 window.deleteOther = (id) => {
