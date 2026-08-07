@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share Calculator — Data Recovery</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Inter,system-ui,sans-serif;background:#f4f6fb;color:#001632;margin:0;padding:24px;line-height:1.5}
+  .wrap{max-width:1100px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:#5b6577;font-size:14px;margin-bottom:20px}
+  .card{background:#fff;border:1px solid rgba(0,22,50,.10);border-radius:16px;padding:20px;margin-bottom:16px}
+  .warn{background:#fff4f5;border-color:#E14B5E55}
+  label{font-size:12px;font-weight:700;color:#5b6577;display:block;margin-bottom:4px}
+  input{width:100%;padding:10px 12px;border:1px solid rgba(0,22,50,.18);border-radius:10px;font-size:14px}
+  button{background:#E14B5E;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer}
+  button.ghost{background:#fff;color:#001632;border:1px solid rgba(0,22,50,.18)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+  th,td{text-align:left;padding:10px;border-bottom:1px solid rgba(0,22,50,.08);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;color:#5b6577;letter-spacing:.06em}
+  .best{background:#f0fdf4}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+  pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;overflow:auto;font-size:12px;max-height:260px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(0,22,50,.06)}
+  .ok{color:#166534;background:#dcfce7}
+  .bad{color:#991b1b;background:#fee2e2}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Share Calculator — Data Recovery</h1>
+  <p class="sub">Read-only by default. Nothing is written unless you click a Restore button and confirm.</p>
+
+  <div class="card warn">
+    <b>Before you start:</b> if the dashboard is still open in another tab showing your data, rescue that first —
+    open its console (F12) and run:
+    <pre id="snippet">(()=>{const s=JSON.stringify(window.__getState(),null,2);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'application/json'}));a.download='rescue.json';a.click();})()</pre>
+  </div>
+
+  <div class="card" id="login-card">
+    <div class="row">
+      <div style="flex:1;min-width:220px"><label>Email</label><input id="email" type="email" placeholder="owner@email.com"></div>
+      <div style="flex:1;min-width:220px"><label>Password</label><input id="password" type="password"></div>
+      <button id="signin">Sign in &amp; scan</button>
+    </div>
+    <p id="err" style="color:#E14B5E;font-size:13px;margin:10px 0 0"></p>
+  </div>
+
+  <div class="card" id="results-card" style="display:none">
+    <b>Copies found</b>
+    <div style="overflow-x:auto"><table id="results">
+      <thead><tr><th>Source</th><th>Batches</th><th>Students</th><th>Received</th><th>Other records</th><th>Actions</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p style="font-size:13px;color:#5b6577;margin-top:14px">
+      The greenest row has the most students. Download the best one, check it, then Restore it.
+    </p>
+  </div>
+
+  <div class="card" id="file-card" style="display:none">
+    <b>Restore from a downloaded file</b>
+    <p style="font-size:13px;color:#5b6577;margin:6px 0 10px">Use a <code>rescue.json</code> from another tab, or a file you downloaded above.</p>
+    <div class="row">
+      <input type="file" id="file" accept="application/json,.json" style="flex:1;min-width:240px">
+      <button class="ghost" id="inspect">Inspect</button>
+      <button id="restore-file" disabled>Restore this file</button>
+    </div>
+    <div id="file-info" style="font-size:13px;margin-top:10px"></div>
+  </div>
+
+  <div class="card" id="log-card" style="display:none"><b>Log</b><pre id="log"></pre></div>
+</div>
+
+<script src="js/config.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+const app  = initializeApp(window.APP_CONFIG.FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+const $ = id => document.getElementById(id);
+const logEl = $('log');
+function log(msg){ $('log-card').style.display='block'; logEl.textContent += msg + "\n"; }
+
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+function summarize(state){
+    const batches = Array.isArray(state?.batches) ? state.batches : [];
+    let students = 0, received = 0, refunds = 0, prev = 0, other = 0, pend = 0;
+    batches.forEach(b => {
+        (b.students||[]).forEach(s => { students++; received += num(s.feePaid); });
+        refunds += (b.refunds||[]).length;
+        prev    += (b.previous||[]).length;
+        pend    += (b.pending||[]).length;
+    });
+    other = (state?.otherPayments||[]).length
+          + (state?.fund?.additions||[]).length
+          + (state?.fund?.expenses||[]).length;
+    return { batches: batches.length, students, received, extras: refunds+prev+pend+other };
+}
+function download(state, name){
+    const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+}
+
+let found = [];   // {label, ref, state, sum}
+
+async function scan(){
+    found = [];
+    const uid = auth.currentUser.uid;
+
+    // 1. the live shared dataset
+    try {
+        const s = await getDoc(doc(db,'app','data'));
+        const st = s.exists() ? s.data().state : null;
+        if (st) found.push({ label:'app/data (live)', state: st });
+        else log('app/data — exists: ' + s.exists() + ', but no "state" field');
+    } catch(e){ log('app/data — could not read: ' + e.message); }
+
+    // 2. the pre-migration copy for this user (migrateIfNeeded never deletes it)
+    try {
+        const s = await getDoc(doc(db,'dashboards',uid));
+        const st = s.exists() ? s.data().state : null;
+        if (st) found.push({ label:'dashboards/'+uid.slice(0,8)+'… (legacy)', state: st });
+        else log('dashboards/{your uid} — nothing stored');
+    } catch(e){ log('dashboards/{uid} — could not read: ' + e.message); }
+
+    // 3. any other legacy per-user copies (may be blocked by rules — that's fine)
+    try {
+        const snap = await getDocs(collection(db,'dashboards'));
+        snap.forEach(d => {
+            if (d.id === uid) return;
+            const st = d.data().state;
+            if (st) found.push({ label:'dashboards/'+d.id.slice(0,8)+'… (other user)', state: st });
+        });
+    } catch(e){ log('listing dashboards/ — not permitted (normal): ' + e.code); }
+
+    // 4. any backup doc a future version may have written
+    for (const id of ['backup','data_backup','autobackup']) {
+        try {
+            const s = await getDoc(doc(db,'app',id));
+            const st = s.exists() ? s.data().state : null;
+            if (st) found.push({ label:'app/'+id, state: st });
+        } catch(e){ /* ignore */ }
+    }
+
+    render();
+}
+
+function render(){
+    const tb = $('results').querySelector('tbody');
+    tb.innerHTML = '';
+    if (!found.length){
+        tb.innerHTML = '<tr><td colspan="6">No stored copy found anywhere. Next step is a Firestore backup or point-in-time restore in the Firebase console.</td></tr>';
+    }
+    found.forEach(f => f.sum = summarize(f.state));
+    const best = Math.max(0, ...found.map(f => f.sum.students));
+    found.forEach((f, i) => {
+        const s = f.sum;
+        const tr = document.createElement('tr');
+        if (s.students === best && best > 0) tr.className = 'best';
+        tr.innerHTML = `<td><b>${f.label}</b> ${s.students===best&&best>0?'<span class="pill ok">fullest</span>':''}</td>
+            <td>${s.batches}</td><td><b>${s.students}</b></td>
+            <td>Rs ${Math.round(s.received).toLocaleString()}</td><td>${s.extras}</td>
+            <td style="white-space:nowrap">
+              <button class="ghost" data-dl="${i}">Download</button>
+              <button data-rs="${i}">Restore</button>
+            </td>`;
+        tb.appendChild(tr);
+    });
+    tb.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => {
+        const f = found[+b.dataset.dl];
+        download(f.state, 'share-calculator-' + f.label.replace(/[^a-z0-9]+/gi,'_') + '.json');
+    });
+    tb.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => restore(found[+b.dataset.rs].state, found[+b.dataset.rs].label));
+    $('results-card').style.display = 'block';
+    $('file-card').style.display = 'block';
+}
+
+async function restore(state, label){
+    const s = summarize(state);
+    if (!confirm(`Restore from ${label}?\n\n${s.batches} batches, ${s.students} students, Rs ${Math.round(s.received).toLocaleString()} received.\n\nThis REPLACES what is currently in app/data.`)) return;
+    try {
+        await setDoc(doc(db,'app','data'), { state });
+        alert('Restored. Open the dashboard and refresh.');
+        log('Restored from ' + label);
+    } catch(e){ alert('Restore failed: ' + e.message); log('Restore failed: ' + e.message); }
+}
+
+$('signin').onclick = async () => {
+    $('err').textContent = '';
+    $('signin').disabled = true;
+    try {
+        await signInWithEmailAndPassword(auth, $('email').value.trim(), $('password').value);
+        $('login-card').style.display = 'none';
+        log('Signed in as ' + auth.currentUser.email + ' — scanning (read-only)…');
+        await scan();
+    } catch(e){
+        $('err').textContent = (e.code||'').replace('auth/','').replace(/-/g,' ') || e.message;
+        $('signin').disabled = false;
+    }
+};
+
+let fileState = null;
+$('inspect').onclick = () => {
+    const f = $('file').files[0];
+    if (!f) return alert('Choose a .json file first.');
+    const rd = new FileReader();
+    rd.onload = () => {
+        try { fileState = JSON.parse(rd.result); }
+        catch(e){ return $('file-info').innerHTML = '<span class="pill bad">Not valid JSON</span>'; }
+        if (!Array.isArray(fileState?.batches)) { fileState = null; return $('file-info').innerHTML = '<span class="pill bad">No "batches" — not a Share Calculator backup</span>'; }
+        const s = summarize(fileState);
+        $('file-info').innerHTML = `<span class="pill ok">Valid</span> ${s.batches} batches · <b>${s.students} students</b> · Rs ${Math.round(s.received).toLocaleString()} received · ${s.extras} other records`;
+        $('restore-file').disabled = false;
+    };
+    rd.readAsText(f);
+};
+$('restore-file').onclick = () => fileState && restore(fileState, 'uploaded file');
+</script>
+</body>
+</html>
