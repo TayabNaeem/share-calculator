@@ -7,7 +7,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, on
          updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
          signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, collection, setDoc, getDoc, deleteDoc, onSnapshot }
+import { getFirestore, doc, collection, setDoc, getDoc, deleteDoc, onSnapshot, writeBatch }
     from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 const OWNER_EMAIL = window.APP_CONFIG.OWNER_EMAIL;
@@ -86,6 +86,80 @@ window.__getRole = () => currentRole;
 let dataRef = null, membersRef = null, saveTimer = null, unsub = null, unsubM = null, unsubR = null;
 let pendingRequests = [];
 let datasetMissing = false;   // true when app/data has no state — blocks all writes
+
+/* =====================================================================
+   Durability: app/data is one document that every save REPLACES wholesale,
+   so a single bad write loses everything. These two additive safety nets fix
+   that without changing how the app reads data:
+     1. records/{id}  — every student / refund / previous / pending / fund entry
+                        / other payment also stored as its OWN document, so no
+                        single write can destroy them. Removals are soft-deleted.
+     2. backups/slotN — a ring of the last 10 whole-state versions, so any bad
+                        write can be rolled back.
+   Both are best-effort: a failure here is logged but never breaks the real save.
+   ===================================================================== */
+const BACKUP_SLOTS = 10;
+let backupIdx = null, lastRecordJson = {}, mirrorWarned = false;
+
+function collectRecords(state){
+    const out = [];
+    (state.batches||[]).forEach(b => {
+        const meta = { batchId: b.id||'', batchName: b.name||'' };
+        (b.students||[]).forEach(x => out.push({ id:x.id, type:'student',  ...meta, data:x }));
+        (b.refunds ||[]).forEach(x => out.push({ id:x.id, type:'refund',   ...meta, data:x }));
+        (b.previous||[]).forEach(x => out.push({ id:x.id, type:'previous', ...meta, data:x }));
+        (b.pending ||[]).forEach(x => out.push({ id:x.id, type:'pending',  ...meta, data:x }));
+    });
+    ((state.fund||{}).additions||[]).forEach(x => out.push({ id:x.id, type:'fundAddition', batchId:x.batchId||'', batchName:'', data:x }));
+    ((state.fund||{}).expenses ||[]).forEach(x => out.push({ id:x.id, type:'fundExpense',  batchId:'', batchName:'', data:x }));
+    (state.otherPayments||[]).forEach(x => out.push({ id:x.id, type:'otherPayment', batchId:x.batchId||'', batchName:'', data:x }));
+    return out.filter(r => r.id);
+}
+window.__collectRecords = collectRecords;   // exposed for diagnostics / recovery tooling
+/* Writes only what actually changed, so an edit costs a couple of writes, not one per record. */
+async function mirrorRecords(state){
+    const recs = collectRecords(state);
+    const ops = [], seen = new Set();
+    recs.forEach(r => {
+        seen.add(r.id);
+        const json = JSON.stringify(r);
+        if (lastRecordJson[r.id] === json) return;
+        ops.push({ id:r.id, payload:{ ...r, updatedAt: Date.now(), deletedAt: null }, json });
+    });
+    Object.keys(lastRecordJson).forEach(id => {
+        if (seen.has(id)) return;
+        ops.push({ id, payload:{ deletedAt: Date.now() }, merge:true, json:null });   // soft delete
+    });
+    if (!ops.length) return;
+    for (let i = 0; i < ops.length; i += 400) {           // writeBatch caps at 500 ops
+        const wb = writeBatch(db);
+        ops.slice(i, i+400).forEach(o => wb.set(doc(db,'records',o.id), o.payload, o.merge ? {merge:true} : {}));
+        await wb.commit();
+    }
+    ops.forEach(o => { if (o.json === null) delete lastRecordJson[o.id]; else lastRecordJson[o.id] = o.json; });
+}
+async function writeBackupSlot(state){
+    // Never let an empty state evict good rollback points.
+    if (!collectRecords(state).length) { console.warn("Backup skipped: state has no records."); return; }
+    if (backupIdx === null) {
+        try { const m = await getDoc(doc(db,'backups','meta')); backupIdx = (m.exists() && parseInt(m.data().next,10)) || 0; }
+        catch(_){ backupIdx = 0; }
+    }
+    const slot = ((backupIdx % BACKUP_SLOTS) + BACKUP_SLOTS) % BACKUP_SLOTS;
+    backupIdx = (slot + 1) % BACKUP_SLOTS;
+    await setDoc(doc(db,'backups','slot'+slot), { state, at: Date.now(), by: (currentUser&&currentUser.email)||'' });
+    await setDoc(doc(db,'backups','meta'), { next: backupIdx, updatedAt: Date.now() });
+}
+function warnMirrorFailed(e){
+    console.warn("Per-record backup failed:", e);
+    if (mirrorWarned || (e && e.code && e.code !== 'permission-denied')) return;
+    mirrorWarned = true;
+    const d = document.createElement('div');
+    d.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:200;background:#B45309;color:#fff;padding:10px 16px;font:600 12px Inter,sans-serif";
+    d.innerHTML = `Per-entry backup is not active — publish the updated Firestore rules (records/ and backups/) from README.md.
+        <button onclick="this.parentNode.remove()" style="margin-left:10px;background:rgba(255,255,255,.2);border-radius:6px;padding:3px 9px">Dismiss</button>`;
+    document.body.appendChild(d);
+}
 
 function showDatasetMissingBanner(){
     if (document.getElementById('dataset-missing')) return;
@@ -251,8 +325,12 @@ window.__queueSave = () => {
     setSync(false, "saving…");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-        try { await setDoc(dataRef, { state: window.__getState() }); setSync(true); }
-        catch(e){ setSync(false, "save failed"); console.error(e); }
+        const st = window.__getState();
+        try { await setDoc(dataRef, { state: st }); setSync(true); }
+        catch(e){ setSync(false, "save failed"); console.error(e); return; }
+        // Additive durability — must never break the save above.
+        try { await mirrorRecords(st); }   catch(e){ warnMirrorFailed(e); }
+        try { await writeBackupSlot(st); } catch(e){ console.warn("Version backup failed:", e); }
     }, 500);
 };
 function setSync(ok, label){

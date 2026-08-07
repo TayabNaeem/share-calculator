@@ -30,6 +30,10 @@ A single-file, dark-theme dashboard for managing a training institute's batches,
 
        match /app/data    { allow read: if isAdmin() || isViewer(); allow write: if isAdmin(); }
        match /app/members { allow read: if request.auth != null; allow write: if owner(); }
+       // every entry also stored as its own document, so no single write can lose them
+       match /records/{id} { allow read: if isAdmin() || isViewer(); allow write: if isAdmin(); }
+       // rolling ring of the last 10 whole-state versions, for rollback
+       match /backups/{id} { allow read, write: if isAdmin(); }
        // new sign-ups register an access request here; only the owner can read/approve
        match /requests/{uid} {
          allow create: if request.auth != null && request.auth.uid == uid;

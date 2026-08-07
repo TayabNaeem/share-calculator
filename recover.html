@@ -110,6 +110,30 @@ function download(state, name){
     a.click();
 }
 
+/* Reassemble a full dataset from the individual per-entry documents. */
+function rebuildFromRecords(recs){
+    const byBatch = {};
+    const bucket = { student:'students', refund:'refunds', previous:'previous', pending:'pending' };
+    const fund = { additions:[], expenses:[] };
+    const otherPayments = [];
+    recs.forEach(r => {
+        if (bucket[r.type]) {
+            const id = r.batchId || 'unknown';
+            const b = byBatch[id] || (byBatch[id] = { id, name: r.batchName || 'Recovered batch',
+                students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' });
+            b[bucket[r.type]].push(r.data);
+        }
+        else if (r.type === 'fundAddition') fund.additions.push(r.data);
+        else if (r.type === 'fundExpense')  fund.expenses.push(r.data);
+        else if (r.type === 'otherPayment') otherPayments.push(r.data);
+    });
+    const batches = Object.values(byBatch);
+    return { companyName:'Skillmentor.pk', logo:'', favicon:'', userAvatars:{},
+             fund, otherPayments, batches, activeBatchId: batches[0] ? batches[0].id : '' };
+}
+
+window.__rebuildFromRecords = rebuildFromRecords;   // exposed for diagnostics
+
 let found = [];   // {label, ref, state, sum}
 
 async function scan(){
@@ -142,14 +166,25 @@ async function scan(){
         });
     } catch(e){ log('listing dashboards/ — not permitted (normal): ' + e.code); }
 
-    // 4. any backup doc a future version may have written
-    for (const id of ['backup','data_backup','autobackup']) {
+    // 4. the rolling version ring (newest first)
+    const slots = [];
+    for (let i = 0; i < 10; i++) {
         try {
-            const s = await getDoc(doc(db,'app',id));
-            const st = s.exists() ? s.data().state : null;
-            if (st) found.push({ label:'app/'+id, state: st });
-        } catch(e){ /* ignore */ }
+            const s = await getDoc(doc(db,'backups','slot'+i));
+            if (s.exists() && s.data().state) slots.push({ i, at: s.data().at||0, state: s.data().state });
+        } catch(e){ if (i===0) log('backups/ — could not read (publish the new rules?): ' + e.code); break; }
     }
+    slots.sort((a,b) => b.at - a.at)
+         .forEach(s => found.push({ label:'backup slot '+s.i+' · '+(s.at?new Date(s.at).toLocaleString():'?'), state: s.state }));
+
+    // 5. rebuild from the per-entry documents — survives any single bad write
+    try {
+        const snap = await getDocs(collection(db,'records'));
+        const recs = [];
+        snap.forEach(d => { const r = d.data(); if (r && !r.deletedAt && r.data) recs.push(r); });
+        if (recs.length) found.push({ label:'rebuilt from records/ ('+recs.length+' entries)', state: rebuildFromRecords(recs) });
+        else log('records/ — no per-entry documents stored yet');
+    } catch(e){ log('records/ — could not read (publish the new rules?): ' + e.code); }
 
     render();
 }
