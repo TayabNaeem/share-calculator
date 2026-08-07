@@ -133,7 +133,10 @@ async function mirrorRecords(state){
     if (!ops.length) return;
     for (let i = 0; i < ops.length; i += 400) {           // writeBatch caps at 500 ops
         const wb = writeBatch(db);
-        ops.slice(i, i+400).forEach(o => wb.set(doc(db,'records',o.id), o.payload, o.merge ? {merge:true} : {}));
+        // Only pass SetOptions when merging — an empty {} is not a valid SetOptions object.
+        ops.slice(i, i+400).forEach(o => o.merge
+            ? wb.set(doc(db,'records',o.id), o.payload, { merge:true })
+            : wb.set(doc(db,'records',o.id), o.payload));
         await wb.commit();
     }
     ops.forEach(o => { if (o.json === null) delete lastRecordJson[o.id]; else lastRecordJson[o.id] = o.json; });
@@ -151,12 +154,18 @@ async function writeBackupSlot(state){
     await setDoc(doc(db,'backups','meta'), { next: backupIdx, updatedAt: Date.now() });
 }
 function warnMirrorFailed(e){
-    console.warn("Per-record backup failed:", e);
-    if (mirrorWarned || (e && e.code && e.code !== 'permission-denied')) return;
+    console.warn("Per-entry backup failed:", e);
+    if (mirrorWarned) return;
     mirrorWarned = true;
+    // Only a permission error means the rules need publishing. Anything else is a real
+    // fault and must say so, rather than sending you to re-publish correct rules.
+    const denied = e && e.code === 'permission-denied';
+    const detail = denied
+        ? "publish firestore.rules to your Firebase project (records/ and backups/)."
+        : "unexpected error: " + escHtml((e && (e.code || e.message)) || String(e)) + " — the rules are probably fine; check the console.";
     const d = document.createElement('div');
     d.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:200;background:#B45309;color:#fff;padding:10px 16px;font:600 12px Inter,sans-serif";
-    d.innerHTML = `Per-entry backup is not active — publish the updated Firestore rules (records/ and backups/) from README.md.
+    d.innerHTML = `Per-entry backup is not active — ${detail}
         <button onclick="this.parentNode.remove()" style="margin-left:10px;background:rgba(255,255,255,.2);border-radius:6px;padding:3px 9px">Dismiss</button>`;
     document.body.appendChild(d);
 }
