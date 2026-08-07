@@ -111,6 +111,9 @@
                         <button id="pm-company" onclick="openCompanyProfile()" class="hidden-view w-full text-left px-3 py-2.5 rounded-xl text-sm text-ink-90 hover:fill-1 transition flex items-center gap-2.5"><i data-lucide="building-2" class="w-4 h-4" style="color:var(--muted)"></i> Company profile</button>
                         <button id="pm-manage" onclick="openManageUsers()" class="hidden-view w-full text-left px-3 py-2.5 rounded-xl text-sm text-ink-90 hover:fill-1 transition flex items-center gap-2.5"><i data-lucide="users" class="w-4 h-4" style="color:var(--muted)"></i> Manage users</button>
                         <div class="h-px fill-2 my-1"></div>
+                        <button onclick="exportData()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm text-ink-90 hover:fill-1 transition flex items-center gap-2.5"><i data-lucide="download" class="w-4 h-4" style="color:var(--muted)"></i> Export data (backup)</button>
+                        <button onclick="importData()" class="edit-only w-full text-left px-3 py-2.5 rounded-xl text-sm text-ink-90 hover:fill-1 transition flex items-center gap-2.5"><i data-lucide="upload" class="w-4 h-4" style="color:var(--muted)"></i> Import data (restore)</button>
+                        <div class="h-px fill-2 my-1"></div>
                         <button onclick="signOutUser()" class="w-full text-left px-3 py-2.5 rounded-xl text-sm hover:fill-1 transition flex items-center gap-2.5" style="color:#E14B5E"><i data-lucide="log-out" class="w-4 h-4"></i> Sign out</button>
                     </div>
                 </div>

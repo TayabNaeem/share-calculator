@@ -200,6 +200,39 @@ window.downloadLegacyBackup = async () => {
     }
     if (!found) alert("No dataset found at app/data or dashboards/{uid}.\nNext step is a Firestore backup / point-in-time restore in the Firebase console.");
 };
+/* ---------- Export / Import (profile menu) ---------- */
+function datasetCounts(st){
+    const batches = Array.isArray(st && st.batches) ? st.batches : [];
+    let students = 0, received = 0;
+    batches.forEach(b => (b.students||[]).forEach(s => { students++; received += (parseFloat(s.feePaid)||0); }));
+    return { batches: batches.length, students, received };
+}
+/* Download the whole dataset as JSON — a copy held outside Firebase entirely. */
+window.exportData = () => {
+    const pm = el('profile-menu'); if (pm) pm.classList.add('hidden-view');
+    const st = window.__getState && window.__getState();
+    if (!st || !Array.isArray(st.batches)) return alert("Nothing to export yet — the dashboard hasn't loaded any data.");
+    const c = datasetCounts(st);
+    try {
+        const blob = new Blob([JSON.stringify(st, null, 2)], { type:'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `share-calculator-backup-${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setSync(true);
+        console.log(`Exported ${c.batches} batches / ${c.students} students.`);
+    } catch(e){ alert("Export failed: " + (e.message||e)); }
+};
+/* Import a previously exported file. Shows exactly what is about to replace what,
+   and requires confirmation before anything is written. */
+window.importData = () => {
+    const pm = el('profile-menu'); if (pm) pm.classList.add('hidden-view');
+    if (!canEdit()) return alert("You need owner or admin access to import data.");
+    window.restoreFromFile();
+};
+
 /* Restore a dataset from a downloaded JSON backup. Writes only after an explicit
    confirmation that names exactly what is about to be written. */
 window.restoreFromFile = () => {
@@ -212,14 +245,24 @@ window.restoreFromFile = () => {
         rd.onload = async () => {
             let st; try { st = JSON.parse(rd.result); } catch(e){ return alert("That file isn't valid JSON."); }
             if (!st || !Array.isArray(st.batches)) return alert("That file doesn't look like a Share Calculator backup (no 'batches').");
-            const n = st.batches.reduce((a,b)=>a+((b.students||[]).length),0);
-            if (!confirm(`Restore ${st.batches.length} batches and ${n} students?\n\nThis replaces whatever is currently in the database.`)) return;
+            const inc = datasetCounts(st), cur = datasetCounts(window.__getState && window.__getState());
+            const losing = cur.students > inc.students
+                ? `\n\nWARNING: the file has FEWER students than what is loaded now (${inc.students} vs ${cur.students}). Export first if you're unsure.` : '';
+            if (!confirm(
+                `Import this backup?\n\n`
+              + `Incoming:  ${inc.batches} batches · ${inc.students} students · Rs ${Math.round(inc.received).toLocaleString()}\n`
+              + `Replacing: ${cur.batches} batches · ${cur.students} students · Rs ${Math.round(cur.received).toLocaleString()}`
+              + losing)) return;
             try {
+                // Snapshot what's there now first, so an unwanted import can be rolled back.
+                try { await writeBackupSlot(window.__getState()); } catch(_){}
                 await setDoc(dataRef, { state: st });
                 datasetMissing = false;
                 const b = document.getElementById('dataset-missing'); if (b) b.remove();
-                alert("Restored. The dashboard will refresh with your data.");
-            } catch(e){ alert("Restore failed: " + friendlyErr(e)); }
+                lastRecordJson = {};                       // force a full re-mirror
+                try { await mirrorRecords(st); } catch(e){ warnMirrorFailed(e); }
+                alert(`Imported ${inc.batches} batches and ${inc.students} students. The dashboard will refresh.`);
+            } catch(e){ alert("Import failed: " + friendlyErr(e)); }
         };
         rd.readAsText(f);
     };
