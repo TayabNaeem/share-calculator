@@ -85,6 +85,72 @@ window.__getRole = () => currentRole;
 /* ---------- Persistence (shared dataset) ---------- */
 let dataRef = null, membersRef = null, saveTimer = null, unsub = null, unsubM = null, unsubR = null;
 let pendingRequests = [];
+let datasetMissing = false;   // true when app/data has no state — blocks all writes
+
+function showDatasetMissingBanner(){
+    if (document.getElementById('dataset-missing')) return;
+    const d = document.createElement('div');
+    d.id = 'dataset-missing';
+    d.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:200;background:#E14B5E;color:#fff;padding:12px 18px;font:600 13px Inter,sans-serif;box-shadow:0 6px 20px -8px rgba(0,0,0,.5)";
+    d.innerHTML = `No dataset found in the database. <b>Saving is disabled</b> so nothing overwrites data that may still be recoverable.
+        <button onclick="window.downloadLegacyBackup()" style="margin-left:10px;background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px">Check for a backup copy</button>
+        <button onclick="window.confirmFreshStart()" style="margin-left:6px;background:rgba(255,255,255,.18);border-radius:8px;padding:4px 10px">Start fresh anyway</button>`;
+    document.body.appendChild(d);
+}
+window.confirmFreshStart = () => {
+    if (!confirm("Start a brand-new empty dataset?\n\nOnly do this if you've already recovered your data or accept losing it. This will overwrite whatever is in the database.")) return;
+    datasetMissing = false;
+    const b = document.getElementById('dataset-missing'); if (b) b.remove();
+    window.__queueSave();
+};
+/* Read-only rescue: the pre-migration copy at dashboards/{uid} is never deleted by
+   migrateIfNeeded, so it can still hold the dataset. Downloads it, writes nothing. */
+window.downloadLegacyBackup = async () => {
+    if (!currentUser) return alert("Sign in first.");
+    const sources = [ ["dashboards/"+currentUser.uid, doc(db,"dashboards",currentUser.uid)], ["app/data", doc(db,"app","data")] ];
+    let found = 0;
+    for (const [label, ref] of sources) {
+        try {
+            const s = await getDoc(ref);
+            const st = s.exists() ? s.data().state : null;
+            if (!st) { console.log("No data at", label); continue; }
+            found++;
+            const n = (st.batches||[]).reduce((a,b)=>a+((b.students||[]).length),0);
+            const blob = new Blob([JSON.stringify(st,null,2)], {type:"application/json"});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `share-calculator-backup-${label.replace(/\//g,'_')}-${Date.now()}.json`;
+            a.click();
+            alert(`Found data at ${label}: ${(st.batches||[]).length} batches, ${n} students.\nDownloaded as JSON.`);
+        } catch(e){ console.warn("Could not read", label, e); }
+    }
+    if (!found) alert("No dataset found at app/data or dashboards/{uid}.\nNext step is a Firestore backup / point-in-time restore in the Firebase console.");
+};
+/* Restore a dataset from a downloaded JSON backup. Writes only after an explicit
+   confirmation that names exactly what is about to be written. */
+window.restoreFromFile = () => {
+    if (!currentUser || !canEdit()) return alert("You need owner/admin access to restore.");
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'application/json,.json';
+    inp.onchange = () => {
+        const f = inp.files && inp.files[0]; if (!f) return;
+        const rd = new FileReader();
+        rd.onload = async () => {
+            let st; try { st = JSON.parse(rd.result); } catch(e){ return alert("That file isn't valid JSON."); }
+            if (!st || !Array.isArray(st.batches)) return alert("That file doesn't look like a Share Calculator backup (no 'batches').");
+            const n = st.batches.reduce((a,b)=>a+((b.students||[]).length),0);
+            if (!confirm(`Restore ${st.batches.length} batches and ${n} students?\n\nThis replaces whatever is currently in the database.`)) return;
+            try {
+                await setDoc(dataRef, { state: st });
+                datasetMissing = false;
+                const b = document.getElementById('dataset-missing'); if (b) b.remove();
+                alert("Restored. The dashboard will refresh with your data.");
+            } catch(e){ alert("Restore failed: " + friendlyErr(e)); }
+        };
+        rd.readAsText(f);
+    };
+    inp.click();
+};
 
 async function bootUser(user){
     currentUser = user;
@@ -119,8 +185,17 @@ function subscribeData(){
     unsub = onSnapshot(dataRef, (snap) => {
         setSync(true);
         if (snap.metadata.hasPendingWrites) return;
-        if (snap.exists() && snap.data().state) window.__loadState(snap.data().state);
-        else { window.__loadState(null); if (canEdit()) window.__queueSave(); }
+        if (snap.exists() && snap.data().state) { datasetMissing = false; window.__loadState(snap.data().state); }
+        else {
+            // NEVER auto-write seed data over the shared doc. If the dataset reads as
+            // empty it may be a transient/permission blip or a loss that is still
+            // recoverable (backups, PITR, the legacy dashboards/{uid} doc) — writing
+            // blank data here would destroy that. Show an empty board, save nothing,
+            // and make the user decide via confirmFreshStart().
+            datasetMissing = true;
+            window.__loadState(null);
+            showDatasetMissingBanner();
+        }
         updateProfileUI(); // reflect the stored profile photo once the dataset is in
     }, (err) => {
         console.error("Firestore read failed:", err);
@@ -170,6 +245,9 @@ function applyRole(){
 }
 window.__queueSave = () => {
     if (!dataRef || !canEdit()) return;
+    // Refuse to write while the shared dataset is missing — a save here would stamp an
+    // empty state over data that may still be recoverable. Cleared by confirmFreshStart().
+    if (datasetMissing) { setSync(false, "not saving · dataset missing"); console.warn("Save blocked: dataset missing. Use confirmFreshStart() to start a new dataset."); return; }
     setSync(false, "saving…");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
