@@ -16,7 +16,12 @@ A single-file, dark-theme dashboard for managing a training institute's batches,
 
 1. Create a free [Firebase](https://console.firebase.google.com) project.
 2. Enable **Authentication → Email/Password** and **Google**. For Google to work on a hosted URL, add that domain under Authentication → Settings → Authorized domains (`localhost` is allowed by default; Google sign-in does not work from a `file://` path).
-3. Create a **Firestore Database**, then publish these rules (set the owner email to your own):
+3. Create a **Firestore Database**, then publish the rules. The full ruleset lives in
+   [`firestore.rules`](firestore.rules) — either paste it into **Firebase console → Firestore
+   Database → Rules → Publish**, or deploy it with `firebase deploy --only firestore:rules`.
+   Rules are **not** part of the app code; they must be published to the Firebase project
+   itself, or `records/` and `backups/` writes are rejected. Same rules, for reference
+   (set the owner email to your own):
 
    ```
    rules_version = '2';
