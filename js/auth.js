@@ -396,7 +396,7 @@ function setSync(ok, label){
 window.toggleProfileMenu = (e) => { if (e) e.stopPropagation(); el('profile-menu').classList.toggle('hidden-view'); };
 document.addEventListener('click', (e) => {
     const m = el('profile-menu');
-    if (m && !m.classList.contains('hidden-view') && !e.target.closest('#profile-menu') && !e.target.closest('#profile-avatar'))
+    if (m && !m.classList.contains('hidden-view') && !e.target.closest('#profile-menu') && !e.target.closest('#profile-trigger'))
         m.classList.add('hidden-view');
 });
 function initials(n){ return (String(n||'?').trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('') || '?').toUpperCase(); }
