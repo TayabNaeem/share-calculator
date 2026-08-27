@@ -53,5 +53,21 @@ const BUNDLES = [
 const BUNDLE = Object.fromEntries(BUNDLES.map(b => [b.id, b]));
 
 /* Profit-share config */
+/* Every tab that can be granted or withheld per member (Manage users -> Access).
+   Order matches the sidebar. */
+const TABS = [
+    { id:'dashboard',    name:'Dashboard' },
+    { id:'students',     name:'All Students' },
+    { id:'oneonone',     name:'1-on-1' },
+    { id:'physical',     name:'Physical' },
+    { id:'installments', name:'Installments' },
+    { id:'breakdown',    name:'Bundles & Courses' },
+    { id:'previous',     name:'Previous Batch' },
+    { id:'refunds',      name:'Fee Refund' },
+    { id:'futurefund',   name:'Future Fund' },
+    { id:'summary',      name:'Summary' },
+    { id:'share',        name:'Profit Share' },
+];
+
 const TEAM = ["Ammad", "Tayyab Naeem", "Umar", "Khizar", "Tayyab Ali"];
 const SHARE_LEAD = { vibeCoding:null, automation:"Ammad", chatbot:"Tayyab Naeem", ghl:"Ammad", shopify:"Tayyab Naeem", seo:"Tayyab Ali", wordpress:"Umar" };

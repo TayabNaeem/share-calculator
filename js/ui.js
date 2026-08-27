@@ -89,7 +89,35 @@ function dateSortControl(){
 /* =====================================================================
    NAVIGATION
    ===================================================================== */
-window.setTab = (t) => { activeTab = t; render(); };
+/* ---------- Per-member access (rules come from Manage users) ---------- */
+/* null = unrestricted. Otherwise the list of tab ids this member may open. */
+function allowedTabs(){
+    const p = window.__getPerms ? window.__getPerms() : null;
+    return (p && Array.isArray(p.tabs) && p.tabs.length) ? p.tabs : null;
+}
+function tabAllowed(t){ const a = allowedTabs(); return !a || a.includes(t); }
+/* Which single team member's share this viewer may see ('' = the whole split). */
+function shareMemberOnly(){
+    const p = window.__getPerms ? window.__getPerms() : null;
+    return (p && p.shareMember) ? p.shareMember : '';
+}
+/* Hides every sidebar entry the member may not open, folds away a group that ends
+   up empty, and moves off the current tab if it is no longer permitted. */
+window.__applyTabPerms = () => {
+    const a = allowedTabs();
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+        btn.classList.toggle('hidden-view', !!a && !a.includes(btn.dataset.tab));
+    });
+    document.querySelectorAll('.nav-group').forEach(g => {
+        const kids = [...g.querySelectorAll('.tab-btn[data-tab]')];
+        g.classList.toggle('hidden-view', kids.length > 0 && kids.every(k => k.classList.contains('hidden-view')));
+    });
+    document.querySelectorAll('.nav-label').forEach(l => l.classList.remove('hidden-view'));
+    if (!tabAllowed(activeTab)) activeTab = (a && a[0]) || 'dashboard';
+    if (state) render();
+};
+
+window.setTab = (t) => { if (!tabAllowed(t)) return; activeTab = t; render(); };
 window.setBatch = (id) => { activeBatchId = id; save(); render(); };
 function nextBatchNum(){ return Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1; }
 function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' }; }
@@ -1187,9 +1215,10 @@ function viewShare(){
     const b = activeBatch();
     const d = shareBreakdown(b);
     const per = d.per;
+    const only = shareMemberOnly();   // '' = full split, otherwise this member only
     const inputs = COURSES.map(c => `
         <div>
-            <label class="block text-xs font-semibold t-muted mb-1">${c.name}${SHARE_LEAD[c.id]?` · <span class="t-coral">${SHARE_LEAD[c.id]}</span>`:''}</label>
+            <label class="block text-xs font-semibold t-muted mb-1">${c.name}${(!only && SHARE_LEAD[c.id])?` · <span class="t-coral">${SHARE_LEAD[c.id]}</span>`:''}</label>
             <div class="field readonly-field">
                 <span class="t-muted text-xs font-semibold">Rs</span>
                 <span class="num font-bold ${per[c.id]>0?'text-ink':(per[c.id]<0?'t-coral':'t-muted')}">${Math.round(per[c.id]).toLocaleString()}</span>
@@ -1200,7 +1229,7 @@ function viewShare(){
     const rem = (amt) => amt * (100 - pct) / 100;   // remaining to pay out
     const settledSub = (amt) => pct>0 ? `<div class="text-[11px] t-gold num">settled ${money(amt*pct/100)}</div>` : '';
     const remLabel = pct>0 ? `<span class="text-[10px] t-muted uppercase ml-1">left</span>` : '';
-    const teamRows = TEAM.map(name => `
+    const teamRows = TEAM.filter(name => !only || name === only).map(name => `
         <div class="flex justify-between items-center fill-1 px-4 py-2.5 rounded-xl text-sm">
             <span class="text-ink-70">${name}</span>
             <div class="text-right leading-tight">
@@ -1241,38 +1270,39 @@ function viewShare(){
                 <p class="t-muted text-sm">Owner 40% · Future fund 36% · Team pool 24% (service lead earns 12%).</p>
             </div>
             <div class="flex items-center gap-3">
-                <div class="text-right">
+                ${only ? '' : `<div class="text-right">
                     <p class="text-xs t-muted">Net distributable</p>
                     <p class="text-lg font-extrabold t-gold num">${money(d.total)}</p>
-                </div>
+                </div>`}
                 <button onclick="downloadShareReport()" class="edit-only btn-primary px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap inline-flex items-center gap-1.5">${ic('download','w-4 h-4')} Download report</button>
             </div>
         </div>
-        <div class="grid grid-cols-2 ${d.other>0?'md:grid-cols-5':'md:grid-cols-4'} gap-3 mb-8">
+        ${only ? '' : `<div class="grid grid-cols-2 ${d.other>0?'md:grid-cols-5':'md:grid-cols-4'} gap-3 mb-8">
             ${miniStat('Current received', money(d.currentReceived), COLOR.gold)}
             ${miniStat('+ Previous batch', money(d.prevReceived), COLOR.coral)}
             ${d.other>0?miniStat('+ Other payments', money(d.other), COLOR.gold):''}
             ${miniStat('− Refunds', money(d.refunds), COLOR.coral)}
             ${miniStat('= Net distributable', money(d.total), COLOR.gold)}
-        </div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
+        </div>`}
+        <div class="grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-8">
+            ${only ? '' : `<div>
                 <h3 class="text-xs font-bold t-muted uppercase tracking-widest mb-2">Revenue by Service (net)</h3>
                 <p class="text-xs t-muted mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
-            </div>
+            </div>`}
             <div class="rounded-2xl p-6 text-ink relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${pct>0?COLOR.gold+'66':'var(--stroke)'}">
                 ${fully ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="rotate-[-12deg] px-6 py-2 rounded-xl text-lg font-extrabold uppercase tracking-widest" style="color:${COLOR.gold};border:3px solid ${COLOR.gold}88;background:${COLOR.gold}12">Settled</span></div>` : ''}
                 <div class="flex items-center justify-between mb-5">
                     <h3 class="text-lg font-bold">Distribution</h3>
-                    <span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">Total <span id="share-total" class="num">Rs 0</span></span>
+                    ${only ? '' : `<span class="badge" style="background:${COLOR.gold}22;color:${COLOR.gold}">Total <span id="share-total" class="num">Rs 0</span></span>`}
                 </div>
                 ${settleControl}
                 ${settledSummary}
                 <div class="space-y-3">
+                    ${only ? '' : `
                     <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${remLabel}${settledSub(d.owner)}</div></div>
-                    <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${remLabel}${settledSub(d.future)}</div></div>
-                    <p class="text-xs t-muted pt-2 pb-1">Team pool (24%)</p>
+                    <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${remLabel}${settledSub(d.future)}</div></div>`}
+                    <p class="text-xs t-muted pt-2 pb-1">${only ? 'Your share' : 'Team pool (24%)'}</p>
                     ${teamRows}
                 </div>
             </div>

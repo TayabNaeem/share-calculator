@@ -69,7 +69,7 @@ window.signOutUser = () => signOut(auth);
 
 /* ---------- Roles & access ---------- */
 window.__owner = OWNER_EMAIL;
-let currentUser = null, currentRole = 'none', membersData = { admins: [], viewers: [] }, membersReady = false, unauthorizedEmail = '';
+let currentUser = null, currentRole = 'none', membersData = { admins: [], viewers: [], perms: {} }, membersReady = false, unauthorizedEmail = '';
 const isOwnerEmail = (e) => !!e && e.toLowerCase() === OWNER_EMAIL.toLowerCase();
 function computeRole(email){
     if (!email) return 'none';
@@ -81,6 +81,17 @@ function computeRole(email){
 }
 function canEdit(){ return currentRole === 'owner' || currentRole === 'admin'; }
 window.__getRole = () => currentRole;
+/* Per-member access rules. null = unrestricted (the owner, or a member with no entry —
+   so members added before this feature keep exactly the access they already had).
+   { tabs:[ids], shareMember:'' } — shareMember limits Profit Share to one person. */
+window.__getPerms = () => {
+    if (!currentUser || isOwnerEmail(currentUser.email)) return null;
+    const p = (membersData.perms || {})[(currentUser.email || '').toLowerCase()];
+    if (!p) return null;
+    const tabs = Array.isArray(p.tabs) && p.tabs.length ? p.tabs : null;
+    const shareMember = typeof p.shareMember === 'string' ? p.shareMember : '';
+    return (!tabs && !shareMember) ? null : { tabs, shareMember };
+};
 
 /* ---------- Persistence (shared dataset) ---------- */
 let dataRef = null, membersRef = null, saveTimer = null, unsub = null, unsubM = null, unsubR = null;
@@ -300,11 +311,13 @@ function subscribeRequests(){
 function subscribeMembers(){
     if (unsubM) unsubM();
     unsubM = onSnapshot(membersRef, (snap) => {
-        membersData = snap.exists() ? { admins: snap.data().admins||[], viewers: snap.data().viewers||[] } : { admins:[], viewers:[] };
+        membersData = snap.exists()
+            ? { admins: snap.data().admins||[], viewers: snap.data().viewers||[], perms: snap.data().perms||{} }
+            : { admins:[], viewers:[], perms:{} };
         membersReady = true;
         applyRole();
         if (document.getElementById('mu-list')) renderManageUsers();
-    }, () => { membersData = { admins:[], viewers:[] }; membersReady = false; applyRole(); });
+    }, () => { membersData = { admins:[], viewers:[], perms:{} }; membersReady = false; applyRole(); });
 }
 function subscribeData(){
     if (unsub) unsub();
@@ -368,6 +381,7 @@ function applyRole(){
     el('sync-pill').classList.toggle('hidden-view', none);
     el('pm-manage').classList.toggle('hidden-view', currentRole !== 'owner');
     el('pm-company').classList.toggle('hidden-view', currentRole !== 'owner');
+    if (window.__applyTabPerms) window.__applyTabPerms();
 }
 window.__queueSave = () => {
     if (!dataRef || !canEdit()) return;
@@ -527,6 +541,84 @@ window.openManageUsers = () => {
     if (currentRole !== 'owner') return;
     renderManageUsers();
 };
+/* Reads the saved rules for one member. Missing entry = unrestricted, so members
+   added before this feature keep the access they already had. */
+function permsFor(email){
+    const p = (membersData.perms || {})[String(email || '').toLowerCase()];
+    return {
+        tabs: (p && Array.isArray(p.tabs) && p.tabs.length) ? p.tabs : null,   // null = every tab
+        shareMember: (p && typeof p.shareMember === 'string') ? p.shareMember : ''
+    };
+}
+function accessSummary(email){
+    const p = permsFor(email);
+    const parts = [];
+    parts.push(p.tabs ? p.tabs.length + ' of ' + TABS.length + ' tabs' : 'all tabs');
+    if (p.shareMember) parts.push('share: ' + p.shareMember);
+    return parts.join(' · ');
+}
+/* Checkbox grid of tabs + a "whose share" picker. prefix keeps ids unique so the
+   create form and the edit dialog can both be open in their own modals. */
+function accessPickerHtml(prefix, email){
+    const p = email ? permsFor(email) : { tabs: null, shareMember: '' };
+    const checks = TABS.map(t => `
+        <label class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg glass cursor-pointer text-xs">
+            <input type="checkbox" class="${prefix}-tab accent-[#E14B5E]" value="${t.id}" ${(!p.tabs || p.tabs.includes(t.id)) ? 'checked' : ''}>
+            <span class="text-ink-90 truncate">${escHtml(t.name)}</span>
+        </label>`).join('');
+    const opts = ['<option value="">Everyone (full split)</option>']
+        .concat(TEAM.map(n => `<option value="${escHtml(n)}" ${p.shareMember === n ? 'selected' : ''}>Only ${escHtml(n)}</option>`)).join('');
+    return `
+    <div class="rounded-xl p-3 mb-3" style="background:rgba(0,22,50,0.03);border:1px solid var(--stroke)">
+        <div class="flex items-center justify-between mb-2">
+            <p class="text-xs font-bold text-ink-70 uppercase tracking-wide">Visible tabs</p>
+            <div class="flex gap-1">
+                <button type="button" onclick="accessSelectAll('${prefix}',true)" class="text-[11px] btn-ghost px-2 py-1 rounded-lg font-semibold">All</button>
+                <button type="button" onclick="accessSelectAll('${prefix}',false)" class="text-[11px] btn-ghost px-2 py-1 rounded-lg font-semibold">None</button>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 mb-3">${checks}</div>
+        <p class="text-xs font-bold text-ink-70 uppercase tracking-wide mb-1">Profit Share shows</p>
+        <select id="${prefix}-share" class="field text-sm">${opts}</select>
+        <p class="text-[11px] t-muted mt-1.5">Pick one person and they see only their own share — the owner, future-fund and other members' amounts stay hidden.</p>
+    </div>`;
+}
+window.accessSelectAll = (prefix, on) => {
+    document.querySelectorAll('.' + prefix + '-tab').forEach(c => { c.checked = on; });
+};
+/* Reads the picker back out. All tabs ticked = unrestricted (stored as no tabs entry). */
+function readAccessPicker(prefix){
+    const boxes = [...document.querySelectorAll('.' + prefix + '-tab')];
+    const picked = boxes.filter(c => c.checked).map(c => c.value);
+    const sel = el(prefix + '-share');
+    const shareMember = sel ? sel.value : '';
+    const allTabs = picked.length === TABS.length;
+    return { tabs: allTabs ? null : picked, shareMember };
+}
+window.openMemberAccess = (email) => {
+    if (currentRole !== 'owner') return;
+    modalShell('Access · ' + escHtml(email), `
+        <p class="text-xs t-muted mb-3">Choose exactly what this user can open, and whose profit share they may see.</p>
+        ${accessPickerHtml('ma', email)}
+        <p id="ma-err" class="t-coral text-sm"></p>`,
+        `<button onclick="saveMemberAccess('${escJs(email)}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Save access</button>`, true);
+};
+window.saveMemberAccess = async (email) => {
+    const key = String(email || '').toLowerCase();
+    const a = readAccessPicker('ma');
+    if (a.tabs && !a.tabs.length) { el('ma-err').innerText = "Pick at least one tab."; return; }
+    const perms = Object.assign({}, membersData.perms || {});
+    if (!a.tabs && !a.shareMember) delete perms[key];          // fully unrestricted
+    else perms[key] = Object.assign({}, a.tabs ? { tabs: a.tabs } : {}, a.shareMember ? { shareMember: a.shareMember } : {});
+    try {
+        const next = { admins: membersData.admins || [], viewers: membersData.viewers || [], perms };
+        await setDoc(membersRef, next);
+        membersData = next;
+        window.closeModal();
+        renderManageUsers();
+    } catch(e){ el('ma-err').innerText = "Save failed: " + friendlyErr(e); }
+};
+
 function renderManageUsers(){
     const admins = membersData.admins||[], viewers = membersData.viewers||[];
     const row = (email, role) => {
@@ -534,9 +626,11 @@ function renderManageUsers(){
         return `
         <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl glass">
             <div class="min-w-0"><p class="text-sm text-ink truncate">${escHtml(email)}</p>
-                <span class="badge" style="background:${c}22;color:${c}">${role}</span></div>
+                <span class="badge" style="background:${c}22;color:${c}">${role}</span>
+                <span class="badge fill-1 t-muted">${escHtml(accessSummary(email))}</span></div>
             <div class="flex items-center gap-1 shrink-0">
                 <button onclick="setMemberRole('${escJs(email)}','${role==='admin'?'viewer':'admin'}')" class="text-xs text-ink-70 btn-ghost px-2.5 py-1.5 rounded-lg hover:text-ink">Make ${role==='admin'?'viewer':'admin'}</button>
+                <button onclick="openMemberAccess('${escJs(email)}')" class="icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Choose what this user can see"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i></button>
                 <button onclick="resetMemberPassword('${escJs(email)}')" class="icon-btn hover:text-[#1E293B]" style="width:30px;height:30px" title="Send password reset email"><i data-lucide="key-round" class="w-4 h-4"></i></button>
                 <button onclick="removeMember('${escJs(email)}')" class="icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Remove user"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             </div>
@@ -582,6 +676,7 @@ function renderManageUsers(){
                     <ul class="cdd-menu"><li class="cdd-opt active" onclick="muRole('viewer')">Viewer</li><li class="cdd-opt" onclick="muRole('admin')">Admin</li></ul>
                 </div>
             </div>
+            ${accessPickerHtml('mu', null)}
             <button onclick="createUserAccount()" id="mu-create-btn" class="btn-primary w-full py-2.5 rounded-xl font-bold">Create login</button>
         </div>
         <p class="text-xs font-bold text-ink-70 uppercase tracking-wide mb-2">Team members</p>
@@ -596,7 +691,10 @@ window.muRole = (r) => {
     cdd.querySelectorAll('.cdd-opt').forEach(o => o.classList.toggle('active', o.getAttribute('onclick').includes(`'${r}'`)));
 };
 async function persistMembers(data, errEl){
-    try { await setDoc(membersRef, data); membersData = data; renderManageUsers(); }
+    try {
+        if (!data.perms) data.perms = membersData.perms || {};
+        await setDoc(membersRef, data); membersData = data; renderManageUsers();
+    }
     catch(e){ const m = "Save failed: " + friendlyErr(e); if (errEl) errEl.innerText = m; else alert(m); console.error(e); }
 }
 let secondaryApp = null;
@@ -623,7 +721,11 @@ window.createUserAccount = async () => {
         const admins = (membersData.admins||[]).filter(e => e.toLowerCase() !== email);
         const viewers = (membersData.viewers||[]).filter(e => e.toLowerCase() !== email);
         if (role === 'admin') admins.push(email); else viewers.push(email);
-        await setDoc(membersRef, { admins, viewers }); membersData = { admins, viewers };
+        const access = readAccessPicker('mu');
+        const perms = Object.assign({}, membersData.perms || {});
+        if (!access.tabs && !access.shareMember) delete perms[email];
+        else perms[email] = Object.assign({}, access.tabs ? { tabs: access.tabs } : {}, access.shareMember ? { shareMember: access.shareMember } : {});
+        await setDoc(membersRef, { admins, viewers, perms }); membersData = { admins, viewers, perms };
         renderManageUsers();
         const e2 = el('mu-err'); if (e2) { e2.style.color = '#1E293B'; e2.innerText = `Login created for ${email} — they can sign in now as ${role}.`; }
     } catch(e){
@@ -642,6 +744,7 @@ window.removeMember = async (email) => {
     await persistMembers({
         admins:  (membersData.admins||[]).filter(x => x.toLowerCase() !== e),
         viewers: (membersData.viewers||[]).filter(x => x.toLowerCase() !== e),
+        perms:   (function(){ const p = Object.assign({}, membersData.perms||{}); delete p[e]; return p; })(),
     });
 };
 window.setMemberRole = async (email, role) => {
