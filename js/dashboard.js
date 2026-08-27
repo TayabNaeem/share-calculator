@@ -5,9 +5,11 @@
    ===================================================================== */
 
 /* ---------- Sidebar nav groups ---------- */
-let navCollapsed = {};
+/* Groups start CLOSED — one only opens when its parent is clicked, and stays
+   open while the user browses inside it. Keyed by group, so it survives re-renders. */
+let navOpen = {};
 window.toggleNavGroup = (key) => {
-    navCollapsed[key] = !navCollapsed[key];
+    navOpen[key] = !navOpen[key];
     syncNavGroups();
 };
 /* Marks a collapsed parent when one of its children is the active tab, so the
@@ -16,7 +18,7 @@ function syncNavGroups(){
     document.querySelectorAll('.nav-group').forEach(g => {
         const key = (g.id || '').replace('nav-grp-', '');
         const hasActive = !!g.querySelector('.tab-btn.active:not(.nav-parent)');
-        const collapsed = !!navCollapsed[key];
+        const collapsed = !navOpen[key];
         g.classList.toggle('collapsed', collapsed);
         const parent = g.querySelector('.nav-parent');
         if (parent) {
