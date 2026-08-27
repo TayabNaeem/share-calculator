@@ -5,7 +5,7 @@
 /* ---------- App state (shared across the classic scripts) ---------- */
 let state = null;
 let activeBatchId = null;
-let activeTab = 'students';
+let activeTab = 'dashboard';
 
 function seedState(){
     const id = 'b' + Date.now();

@@ -151,11 +151,13 @@ function render(){
     if (!state) return;
     applyBranding();
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+    syncNavGroups();
     renderKpis();
     renderBatchBar();
     const c = document.getElementById('tab-content');
     c.classList.remove('fade-in'); void c.offsetWidth; c.classList.add('fade-in');
-    if (activeTab === 'students')          c.innerHTML = viewStudents();
+    if (activeTab === 'dashboard')         c.innerHTML = viewDashboard();
+    else if (activeTab === 'students')     c.innerHTML = viewStudents();
     else if (activeTab === 'oneonone')     c.innerHTML = viewOneOnOne();
     else if (activeTab === 'physical')     c.innerHTML = viewPhysical();
     else if (activeTab === 'installments') c.innerHTML = viewInstallments();

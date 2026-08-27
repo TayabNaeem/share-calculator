@@ -136,7 +136,7 @@ select.field option { background-color: #fff; color: var(--ink); }
 .tab-btn:hover { color: var(--ink); background: rgba(0,22,50,0.045); }
 .tab-btn.active { color:#fff; background: linear-gradient(135deg, var(--coral), var(--coral-dark));
     box-shadow: 0 10px 22px -12px rgba(225,75,94,0.9); }
-.tab-btn.active svg { color: #1E293B; }
+.tab-btn.active svg { color: #fff; }
 
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
@@ -163,3 +163,40 @@ body.role-viewer .edit-only { display: none !important; }
 
 /* Keep white text on coloured chips regardless of the global text flip */
 #profile-avatar, #brand-logo { color: #fff !important; }
+
+/* =====================================================================
+   Sidebar nav — section labels + collapsible groups
+   ===================================================================== */
+.nav-label {
+    font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); opacity: .75; padding: 12px 14px 5px; margin: 0;
+}
+.nav-group { display: flex; flex-direction: column; gap: 3px; }
+.nav-parent { width: 100%; }
+.nav-caret { margin-left: auto; transition: transform .22s cubic-bezier(.2,.7,.3,1); color: var(--muted); }
+.nav-group.collapsed .nav-caret { transform: rotate(-90deg); }
+/* Children collapse by max-height so the caret animation has something to match */
+.nav-children {
+    display: flex; flex-direction: column; gap: 3px;
+    margin: 3px 0 0 20px; padding-left: 10px;
+    border-left: 1.5px solid var(--stroke);
+    max-height: 320px; overflow: hidden;
+    transition: max-height .25s cubic-bezier(.2,.7,.3,1), opacity .18s, margin .25s;
+}
+.nav-group.collapsed .nav-children { max-height: 0; opacity: 0; margin-top: 0; pointer-events: none; }
+/* Sub-items read as secondary to their parent */
+.tab-btn.tab-sub { font-size: .845rem; padding: 8px 12px; font-weight: 600; }
+.tab-btn.tab-sub svg { width: 15px; height: 15px; }
+/* A collapsed group still has to show that something inside it is selected */
+.nav-group.collapsed .nav-parent.has-active {
+    color: var(--coral); background: rgba(225,75,94,0.10);
+}
+.nav-group.collapsed .nav-parent.has-active svg { color: var(--coral); }
+
+/* ---------- Dashboard ---------- */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.stat-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 0; border-bottom: 1px solid var(--stroke); }
+.stat-row:last-child { border-bottom: none; }
+.bar-track { height: 8px; border-radius: 999px; background: rgba(0,22,50,0.07); overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 999px; transition: width .5s cubic-bezier(.2,.7,.3,1); }

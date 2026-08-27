@@ -77,16 +77,31 @@
             </div>
 
             <div class="tab-nav">
-                <button data-tab="students"   onclick="setTab('students')"   class="tab-btn"><i data-lucide="users" class="w-4 h-4"></i> Students</button>
-                <button data-tab="oneonone"   onclick="setTab('oneonone')"   class="tab-btn"><i data-lucide="user-round" class="w-4 h-4"></i> 1-on-1</button>
-                <button data-tab="physical"   onclick="setTab('physical')"   class="tab-btn"><i data-lucide="map-pin" class="w-4 h-4"></i> Physical</button>
-                <button data-tab="installments" onclick="setTab('installments')" class="tab-btn"><i data-lucide="credit-card" class="w-4 h-4"></i> Installments</button>
-                <button data-tab="breakdown"  onclick="setTab('breakdown')"  class="tab-btn"><i data-lucide="package" class="w-4 h-4"></i> Bundles &amp; Courses</button>
-                <button data-tab="previous"   onclick="setTab('previous')"   class="tab-btn"><i data-lucide="history" class="w-4 h-4"></i> Previous Batch</button>
-                <button data-tab="refunds"    onclick="setTab('refunds')"    class="tab-btn"><i data-lucide="hand-coins" class="w-4 h-4"></i> Fee Refund</button>
-                <button data-tab="summary"    onclick="setTab('summary')"    class="tab-btn"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Summary</button>
-                <button data-tab="share"      onclick="setTab('share')"      class="tab-btn"><i data-lucide="handshake" class="w-4 h-4"></i> Profit Share</button>
+                <button data-tab="dashboard" onclick="setTab('dashboard')" class="tab-btn"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</button>
+
+                <p class="nav-label">Enrollments</p>
+                <div class="nav-group" id="nav-grp-students">
+                    <button type="button" class="tab-btn nav-parent" onclick="toggleNavGroup('students')" aria-expanded="true">
+                        <i data-lucide="users" class="w-4 h-4"></i><span class="flex-1 text-left">Students</span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 nav-caret"></i>
+                    </button>
+                    <div class="nav-children">
+                    <button data-tab="students" onclick="setTab('students')" class="tab-btn tab-sub"><i data-lucide="list" class="w-4 h-4"></i> All Students</button>
+                    <button data-tab="oneonone" onclick="setTab('oneonone')" class="tab-btn tab-sub"><i data-lucide="user-round" class="w-4 h-4"></i> 1-on-1</button>
+                    <button data-tab="physical" onclick="setTab('physical')" class="tab-btn tab-sub"><i data-lucide="map-pin" class="w-4 h-4"></i> Physical</button>
+                    <button data-tab="installments" onclick="setTab('installments')" class="tab-btn tab-sub"><i data-lucide="credit-card" class="w-4 h-4"></i> Installments</button>
+                    </div>
+                </div>
+
+                <p class="nav-label">Finance</p>
+                <button data-tab="breakdown" onclick="setTab('breakdown')" class="tab-btn"><i data-lucide="package" class="w-4 h-4"></i> Bundles &amp; Courses</button>
+                <button data-tab="previous" onclick="setTab('previous')" class="tab-btn"><i data-lucide="history" class="w-4 h-4"></i> Previous Batch</button>
+                <button data-tab="refunds" onclick="setTab('refunds')" class="tab-btn"><i data-lucide="hand-coins" class="w-4 h-4"></i> Fee Refund</button>
                 <button data-tab="futurefund" onclick="setTab('futurefund')" class="tab-btn"><i data-lucide="piggy-bank" class="w-4 h-4"></i> Future Fund</button>
+
+                <p class="nav-label">Reports</p>
+                <button data-tab="summary" onclick="setTab('summary')" class="tab-btn"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Summary</button>
+                <button data-tab="share" onclick="setTab('share')" class="tab-btn"><i data-lucide="handshake" class="w-4 h-4"></i> Profit Share</button>
             </div>
 
             <!-- Account: pinned to the bottom of the sidebar -->
@@ -150,6 +165,7 @@
 <script src="js/config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/dashboard.js"></script>
 <script type="module" src="js/auth.js"></script>
 </body>
 </html>
