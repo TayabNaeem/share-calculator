@@ -200,3 +200,82 @@ body.role-viewer .edit-only { display: none !important; }
 .stat-row:last-child { border-bottom: none; }
 .bar-track { height: 8px; border-radius: 999px; background: rgba(0,22,50,0.07); overflow: hidden; }
 .bar-fill  { height: 100%; border-radius: 999px; transition: width .5s cubic-bezier(.2,.7,.3,1); }
+
+/* =====================================================================
+   Sign-in — split screen (navy brand panel + light card)
+   ===================================================================== */
+.auth-split { display: flex; min-height: 100vh; position: relative; z-index: 10; background: var(--bg); }
+
+/* Left brand panel */
+.auth-left {
+    flex: 1 1 46%; position: relative; overflow: hidden; color: #fff;
+    background: var(--navy);
+    padding: 44px 56px;
+    display: flex; flex-direction: column; justify-content: space-between;
+}
+/* Coral glow, echoing the app's aurora */
+.auth-left::before {
+    content: ""; position: absolute; width: 640px; height: 640px; border-radius: 50%;
+    top: -190px; right: -150px; pointer-events: none;
+    background: radial-gradient(circle at 38% 36%, rgba(225,75,94,.62), rgba(225,75,94,.14) 52%, transparent 70%);
+}
+.auth-left > * { position: relative; z-index: 1; }
+
+.auth-mark { display: flex; align-items: center; gap: 11px; }
+.auth-mark-logo {
+    width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 13px; color: #fff;
+    background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+}
+.auth-mark-name { font-family: 'Sora','Inter',sans-serif; font-weight: 800; font-size: 1.05rem; letter-spacing: -0.02em; }
+.auth-dot { color: var(--coral); }
+
+.auth-pitch { max-width: 480px; }
+.auth-pitch h2 {
+    font-family: 'Sora','Inter',sans-serif; font-weight: 800;
+    font-size: clamp(2rem, 3.4vw, 3rem); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 18px;
+}
+.auth-pitch > p { color: rgba(255,255,255,.62); font-size: .95rem; line-height: 1.6; margin: 0 0 34px; max-width: 30rem; }
+
+.auth-features { display: flex; flex-direction: column; gap: 18px; }
+.auth-feature { display: flex; align-items: flex-start; gap: 13px; }
+.auth-feature-icon {
+    width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(225,75,94,.16); color: var(--coral);
+}
+.auth-feature-title { font-size: .875rem; font-weight: 700; margin: 0 0 2px; }
+.auth-feature-body  { font-size: .8rem; color: rgba(255,255,255,.55); margin: 0; line-height: 1.5; }
+
+.auth-foot { font-size: 10.5px; font-weight: 700; letter-spacing: .16em; color: rgba(255,255,255,.34); margin: 0; }
+
+/* Right sign-in side */
+.auth-right { flex: 1 1 54%; display: flex; align-items: center; justify-content: center; padding: 32px 24px; }
+.auth-card {
+    width: 100%; max-width: 428px; background: #fff; border-radius: 22px;
+    padding: 38px 36px; border: 1px solid var(--stroke);
+    box-shadow: 0 1px 2px rgba(0,22,50,.05), 0 34px 74px -38px rgba(0,22,50,.42);
+}
+.auth-title { font-family: 'Sora','Inter',sans-serif; font-size: 1.55rem; font-weight: 800; color: var(--ink); margin: 0 0 6px; letter-spacing: -0.02em; }
+.auth-sub { font-size: .875rem; color: var(--muted); margin: 0 0 26px; }
+.auth-label { display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.auth-link { font-size: 12px; font-weight: 700; color: var(--coral); margin-bottom: 6px; }
+.auth-link:hover { text-decoration: underline; }
+.auth-note {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 11.5px; color: var(--muted); margin: 18px 0 0;
+    padding-top: 16px; border-top: 1px solid var(--stroke); text-align: center;
+}
+
+@media (max-width: 940px) {
+    .auth-split { flex-direction: column; min-height: 100vh; }
+    .auth-left { flex: none; padding: 28px 26px; }
+    .auth-left::before { width: 380px; height: 380px; top: -150px; right: -110px; }
+    .auth-pitch h2 { font-size: 1.7rem; }
+    .auth-pitch > p { margin-bottom: 22px; }
+    .auth-features { display: none; }
+    .auth-foot { display: none; }
+    .auth-right { padding: 26px 18px 40px; }
+    .auth-card { padding: 30px 24px; box-shadow: 0 1px 2px rgba(0,22,50,.05), 0 20px 40px -30px rgba(0,22,50,.4); }
+}
