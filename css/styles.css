@@ -222,11 +222,14 @@ body.role-viewer .edit-only { display: none !important; }
 .auth-left > * { position: relative; z-index: 1; }
 
 .auth-mark { display: flex; align-items: center; gap: 11px; }
-.auth-mark-logo {
-    width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-weight: 900; font-size: 13px; color: #fff;
-    background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+/* Brand swoosh. Outline takes the panel colour so the mark stays legible on navy. */
+.auth-logo {
+    width: 74px; height: auto; flex-shrink: 0;
+    fill: var(--coral);
+    stroke: #fff;
+    stroke-width: 7;
+    stroke-linejoin: round;
+    stroke-linecap: round;
 }
 .auth-mark-name { font-family: 'Sora','Inter',sans-serif; font-weight: 800; font-size: 1.05rem; letter-spacing: -0.02em; }
 .auth-dot { color: var(--coral); }

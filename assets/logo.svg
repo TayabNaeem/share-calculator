@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="300" height="200" role="img" aria-label="Skillmentor.pk mark">
+  <!-- Brand swoosh. Navy outline + crimson fill, as it appears on a light background.
+       The sign-in screen renders this same path inline with a white outline so it
+       stays legible on the navy panel. -->
+  <path d="M288 6 C238 78 176 136 112 158 C74 171 40 172 14 156
+           C22 178 44 192 78 190 C142 186 216 120 288 6 Z"
+        fill="#B0405A" stroke="#001632" stroke-width="7"
+        stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
