@@ -13,6 +13,7 @@ function seedState(){
         companyName: 'Skillmentor.pk',
         logo: '',
         favicon: '',
+        loginLogo: '',
         userAvatars: {},
         fund: { additions: [], expenses: [] },
         otherPayments: [],
@@ -79,6 +80,7 @@ window.__loadState = (incoming) => {
     };
     state.otherPayments = Array.isArray(state.otherPayments) ? state.otherPayments.map(normalizeOther) : [];
     state.userAvatars = (state.userAvatars && typeof state.userAvatars === 'object') ? state.userAvatars : {};
+    state.loginLogo = typeof state.loginLogo === 'string' ? state.loginLogo : '';
     activeBatchId = state.activeBatchId && state.batches.some(b=>b.id===state.activeBatchId)
         ? state.activeBatchId : state.batches[0].id;
     render();

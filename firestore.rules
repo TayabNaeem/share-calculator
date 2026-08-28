@@ -15,6 +15,10 @@ service cloud.firestore {
     // Every entry stored as its own document, so no single write can lose them
     match /records/{id} { allow read: if isAdmin() || isViewer(); allow write: if isAdmin(); }
 
+    // Sign-in screen logo only. Readable without auth because the sign-in page
+    // paints before anyone has signed in; holds no dataset, just the image.
+    match /app/public  { allow read: if true; allow write: if isAdmin(); }
+
     // Rolling ring of the last 10 whole-state versions, for rollback
     match /backups/{id} { allow read, write: if isAdmin(); }
 

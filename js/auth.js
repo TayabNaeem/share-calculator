@@ -67,6 +67,46 @@ window.handleForgotPassword = async () => {
 };
 window.signOutUser = () => signOut(auth);
 
+/* ---------- Sign-in screen logo ----------
+   The sign-in screen paints before anyone is authenticated, so it cannot read the
+   logo out of the shared dataset. It is therefore kept in two places:
+     - localStorage, so this device paints it instantly on the next visit;
+     - app/public, a doc holding nothing but the logo, so other devices get it too
+       (needs the app/public rule from firestore.rules — without it the local copy
+       still works and the write simply fails quietly).                            */
+const LOGIN_LOGO_KEY = 'sm_login_logo';
+function applyLoginLogo(dataUrl){
+    const img = el('auth-logo-img'), mark = el('auth-logo-mark');
+    if (!img || !mark) return;
+    if (dataUrl) {
+        img.src = dataUrl;
+        img.classList.remove('hidden-view');
+        mark.classList.add('hidden-view');
+    } else {
+        img.removeAttribute('src');
+        img.classList.add('hidden-view');
+        mark.classList.remove('hidden-view');
+    }
+}
+window.__publishLoginLogo = async (dataUrl) => {
+    try { dataUrl ? localStorage.setItem(LOGIN_LOGO_KEY, dataUrl) : localStorage.removeItem(LOGIN_LOGO_KEY); } catch(_){}
+    applyLoginLogo(dataUrl);
+    try { await setDoc(doc(db, 'app', 'public'), { loginLogo: dataUrl || '' }); }
+    catch(e){ console.warn("Sign-in logo saved on this device only — add the app/public rule to share it across devices.", e.code || e.message); }
+};
+(function initLoginLogo(){
+    let cached = '';
+    try { cached = localStorage.getItem(LOGIN_LOGO_KEY) || ''; } catch(_){}
+    if (cached) applyLoginLogo(cached);
+    if (!db) return;
+    getDoc(doc(db, 'app', 'public')).then(snap => {
+        const remote = (snap.exists() && typeof snap.data().loginLogo === 'string') ? snap.data().loginLogo : null;
+        if (remote === null || remote === cached) return;
+        try { remote ? localStorage.setItem(LOGIN_LOGO_KEY, remote) : localStorage.removeItem(LOGIN_LOGO_KEY); } catch(_){}
+        applyLoginLogo(remote);
+    }).catch(() => { /* not readable while signed out — the cached copy stands */ });
+})();
+
 /* ---------- Roles & access ---------- */
 window.__owner = OWNER_EMAIL;
 let currentUser = null, currentRole = 'none', membersData = { admins: [], viewers: [], perms: {} }, membersReady = false, unauthorizedEmail = '';
@@ -336,6 +376,14 @@ function subscribeData(){
             showDatasetMissingBanner();
         }
         updateProfileUI(); // reflect the stored profile photo once the dataset is in
+        const st = window.__getState && window.__getState();
+        if (st && typeof st.loginLogo === 'string') {
+            let cached = ''; try { cached = localStorage.getItem(LOGIN_LOGO_KEY) || ''; } catch(_){}
+            if (st.loginLogo !== cached) {
+                try { st.loginLogo ? localStorage.setItem(LOGIN_LOGO_KEY, st.loginLogo) : localStorage.removeItem(LOGIN_LOGO_KEY); } catch(_){}
+                applyLoginLogo(st.loginLogo);
+            }
+        }
     }, (err) => {
         console.error("Firestore read failed:", err);
         setSync(false, "offline · check Firestore");

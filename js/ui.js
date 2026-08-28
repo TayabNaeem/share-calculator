@@ -1409,13 +1409,15 @@ window.saveBatchName = () => {
     if (!v) return alert("Please enter a batch name.");
     activeBatch().name = v; save(); closeModal(); render();
 };
+let pendingLoginLogo = null;
 window.openCompanyProfile = () => {
     document.getElementById('profile-menu').classList.add('hidden-view');
     if (window.__getRole && window.__getRole() !== 'owner') return;
-    pendingLogo = null; pendingFavicon = null;
+    pendingLogo = null; pendingFavicon = null; pendingLoginLogo = null;
     const name = (state && state.companyName) || 'Skillmentor.pk';
     const logo = (state && state.logo) || '';
     const favicon = (state && state.favicon) || '';
+    const loginLogo = (state && state.loginLogo) || '';
     const preview = logo
         ? `<img id="cp-preview" src="${logo}" class="w-full h-full object-cover">`
         : `<span id="cp-preview" class="text-ink font-black text-lg">${esc((name.replace(/[^a-zA-Z0-9]/g,'').slice(0,2)||'SM').toUpperCase())}</span>`;
@@ -1441,6 +1443,16 @@ window.openCompanyProfile = () => {
                     </label>
                     ${favicon ? `<button onclick="removeFavicon()" class="ml-2 text-xs t-coral hover:brightness-125 font-semibold">Remove</button>` : ``}
                     <p class="text-xs t-muted mt-1">Browser-tab icon. Square PNG works best.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 mb-5">
+                <div id="cp-login-box" class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 border line" style="background:var(--navy)">${loginLogo?`<img id="cp-login-preview" src="${loginLogo}" class="w-full h-full object-contain p-1">`:`<span id="cp-login-preview" class="t-muted">${ic('log-in','w-6 h-6')}</span>`}</div>
+                <div class="flex-1">
+                    <label class="btn-ghost inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm cursor-pointer text-ink-90">${ic('upload','w-4 h-4')} Upload sign-in logo
+                        <input type="file" accept="image/*" class="hidden" onchange="handleLoginLogoPick(event)">
+                    </label>
+                    ${loginLogo ? `<button onclick="removeLoginLogo()" class="ml-2 text-xs t-coral hover:brightness-125 font-semibold">Remove</button>` : ``}
+                    <p class="text-xs t-muted mt-1">Shown top-left on the sign-in screen (dark background — use a light or transparent PNG).</p>
                 </div>
             </div>
             <label class="text-xs font-semibold t-muted">Company name</label>
@@ -1493,12 +1505,48 @@ window.handleFaviconPick = (ev) => {
     reader.readAsDataURL(file);
 };
 window.removeFavicon = () => { pendingFavicon = ''; state.favicon = ''; save(); render(); openCompanyProfile(); };
+/* Sign-in logo. Kept wider than the square app logo since brand marks are usually
+   horizontal, and stored as PNG so transparency survives. */
+window.handleLoginLogoPick = (ev) => {
+    const file = ev.target.files && ev.target.files[0]; if (!file) return;
+    if (!file.type.startsWith('image/')) { document.getElementById('cp-err').innerText = "Please choose an image file."; return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const maxW = 420, maxH = 140;
+            let { width, height } = img;
+            const scale = Math.min(maxW / width, maxH / height, 1);
+            width = Math.max(1, Math.round(width * scale));
+            height = Math.max(1, Math.round(height * scale));
+            const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            pendingLoginLogo = canvas.toDataURL('image/png');
+            const box = document.getElementById('cp-login-box');
+            if (box) box.innerHTML = `<img src="${pendingLoginLogo}" class="w-full h-full object-contain p-1">`;
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+window.removeLoginLogo = () => {
+    pendingLoginLogo = '';
+    state.loginLogo = '';
+    if (window.__publishLoginLogo) window.__publishLoginLogo('');
+    save(); render(); openCompanyProfile();
+};
 window.saveCompanyProfile = () => {
     const name = document.getElementById('cp-name').value.trim();
     if (!name) { document.getElementById('cp-err').innerText = "Enter a company name."; return; }
     state.companyName = name;
     if (pendingLogo !== null) state.logo = pendingLogo;
     if (pendingFavicon !== null) state.favicon = pendingFavicon;
+    if (pendingLoginLogo !== null) {
+        state.loginLogo = pendingLoginLogo;
+        // The sign-in screen renders before anyone is authenticated, so it cannot read
+        // this from Firestore — publish it somewhere the signed-out page can reach.
+        if (window.__publishLoginLogo) window.__publishLoginLogo(state.loginLogo);
+    }
     save(); closeModal(); render();
 };
 
