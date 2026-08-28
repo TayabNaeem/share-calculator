@@ -77,15 +77,20 @@ window.signOutUser = () => signOut(auth);
 const LOGIN_LOGO_KEY = 'sm_login_logo';
 function applyLoginLogo(dataUrl){
     const img = el('auth-logo-img'), mark = el('auth-logo-mark');
+    const word = document.querySelector('.auth-mark-name');
     if (!img || !mark) return;
     if (dataUrl) {
         img.src = dataUrl;
         img.classList.remove('hidden-view');
         mark.classList.add('hidden-view');
+        // An uploaded logo already carries the brand name, so the text wordmark
+        // beside it would just repeat it.
+        if (word) word.classList.add('hidden-view');
     } else {
         img.removeAttribute('src');
         img.classList.add('hidden-view');
         mark.classList.remove('hidden-view');
+        if (word) word.classList.remove('hidden-view');
     }
 }
 window.__publishLoginLogo = async (dataUrl) => {
