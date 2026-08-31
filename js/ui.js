@@ -1216,15 +1216,17 @@ function viewShare(){
     const d = shareBreakdown(b);
     const per = d.per;
     const only = shareMemberOnly();   // '' = full split, otherwise this member only
-    const inputs = COURSES.map(c => `
-        <div>
-            <label class="block text-xs font-semibold t-muted mb-1">${c.name}${(!only && batchLead(b, c.id))?` · <span class="t-coral">${esc(batchLead(b, c.id))}</span>`:''}</label>
-            ${only ? '' : leadPicker(b, c.id)}
-            <div class="field readonly-field">
-                <span class="t-muted text-xs font-semibold">Rs</span>
-                <span class="num font-bold ${per[c.id]>0?'text-ink':(per[c.id]<0?'t-coral':'t-muted')}">${Math.round(per[c.id]).toLocaleString()}</span>
+    const inputs = COURSES.map(c => {
+        const val = num(per[c.id]);
+        return `
+        <div class="svc-row">
+            <div class="min-w-0">
+                <p class="svc-name">${c.name}</p>
+                ${only ? '' : leadPicker(b, c.id)}
             </div>
-        </div>`).join('');
+            <p class="svc-amt num ${val>0?'text-ink':(val<0?'t-coral':'t-muted')}">${money(val)}</p>
+        </div>`;
+    }).join('');
     const pct = num(b.settledPct);
     const fully = pct >= 100;
     const rem = (amt) => amt * (100 - pct) / 100;   // remaining to pay out
@@ -1289,7 +1291,7 @@ function viewShare(){
             ${only ? '' : `<div>
                 <h3 class="text-xs font-bold t-muted uppercase tracking-widest mb-2">Revenue by Service (net)</h3>
                 <p class="text-xs t-muted mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${inputs}</div>
+                <div class="svc-list">${inputs}</div>
             </div>`}
             <div class="rounded-2xl p-6 text-ink relative overflow-hidden" style="background:linear-gradient(160deg,var(--navy-2),var(--navy-3));border:1px solid ${pct>0?COLOR.gold+'66':'var(--stroke)'}">
                 ${fully ? `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10"><span class="rotate-[-12deg] px-6 py-2 rounded-xl text-lg font-extrabold uppercase tracking-widest" style="color:${COLOR.gold};border:3px solid ${COLOR.gold}88;background:${COLOR.gold}12">Settled</span></div>` : ''}
@@ -1319,10 +1321,16 @@ function leadPicker(b, courseId){
     const opts = ['<option value="">Company default' + (SHARE_LEAD[courseId] ? ' (' + esc(SHARE_LEAD[courseId]) + ')' : ' (no lead)') + '</option>',
                   '<option value="__none__"' + (raw === '__none__' ? ' selected' : '') + '>No lead — split 24% evenly</option>']
         .concat(TEAM.map(n => '<option value="' + esc(n) + '"' + (raw === n ? ' selected' : '') + '>' + esc(n) + ' earns 12%</option>')).join('');
-    return `<select class="owner-only field mt-1 text-xs" style="padding:.4rem .6rem"
-                onchange="setBatchLead('${courseId}', this.value)"
-                title="Who teaches ${esc(COURSE_NAME[courseId] || courseId)} in ${esc(b.name)}">${opts}</select>
-            ${overridden ? `<p class="text-[10px] t-coral mt-1 owner-only">Set for ${esc(b.name)}${current ? '' : ' · no lead'}</p>` : ''}`;
+    const label = current || 'No lead';
+    const title = overridden
+        ? `Set for ${esc(b.name)} — overrides the company default`
+        : `Who teaches ${esc(COURSE_NAME[courseId] || courseId)} in ${esc(b.name)}`;
+    return `<div class="svc-lead">
+        <span class="svc-lead-tag">Lead</span>
+        <select class="lead-select owner-only${overridden ? ' is-override' : ''}"
+                onchange="setBatchLead('${courseId}', this.value)" title="${title}">${opts}</select>
+        <span class="lead-static${current ? '' : ' is-none'}">${esc(label)}</span>
+    </div>`;
 }
 window.setBatchLead = (courseId, value) => {
     // Owner only — admins can edit payments but not who earns a course's lead share.
