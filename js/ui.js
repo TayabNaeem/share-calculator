@@ -1319,12 +1319,14 @@ function leadPicker(b, courseId){
     const opts = ['<option value="">Company default' + (SHARE_LEAD[courseId] ? ' (' + esc(SHARE_LEAD[courseId]) + ')' : ' (no lead)') + '</option>',
                   '<option value="__none__"' + (raw === '__none__' ? ' selected' : '') + '>No lead — split 24% evenly</option>']
         .concat(TEAM.map(n => '<option value="' + esc(n) + '"' + (raw === n ? ' selected' : '') + '>' + esc(n) + ' earns 12%</option>')).join('');
-    return `<select class="edit-only field mt-1 text-xs" style="padding:.4rem .6rem"
+    return `<select class="owner-only field mt-1 text-xs" style="padding:.4rem .6rem"
                 onchange="setBatchLead('${courseId}', this.value)"
                 title="Who teaches ${esc(COURSE_NAME[courseId] || courseId)} in ${esc(b.name)}">${opts}</select>
-            ${overridden ? `<p class="text-[10px] t-coral mt-1 edit-only">Set for ${esc(b.name)}${current ? '' : ' · no lead'}</p>` : ''}`;
+            ${overridden ? `<p class="text-[10px] t-coral mt-1 owner-only">Set for ${esc(b.name)}${current ? '' : ' · no lead'}</p>` : ''}`;
 }
 window.setBatchLead = (courseId, value) => {
+    // Owner only — admins can edit payments but not who earns a course's lead share.
+    if (!window.__getRole || window.__getRole() !== 'owner') return;
     const b = activeBatch();
     if (!b.leads || typeof b.leads !== 'object') b.leads = {};
     if (value) b.leads[courseId] = value;   // a name, or '__none__'

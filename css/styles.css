@@ -151,6 +151,8 @@ table { border-collapse: separate; border-spacing: 0; }
 
 .hidden-view { display: none !important; }
 body.role-viewer .edit-only { display: none !important; }
+/* Owner-only controls: hidden from admins and viewers alike. */
+body:not(.role-owner) .owner-only { display: none !important; }
 ::-webkit-scrollbar { height: 8px; width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0,22,50,0.18); border-radius: 8px; }

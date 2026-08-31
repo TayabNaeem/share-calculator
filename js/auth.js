@@ -429,6 +429,7 @@ function applyRole(){
     }
     updateProfileUI();
     document.body.classList.toggle('role-viewer', currentRole === 'viewer');
+    document.body.classList.toggle('role-owner', currentRole === 'owner');
     el('noaccess').classList.toggle('hidden-view', !none);
     el('app-main').classList.toggle('hidden-view', none);
     el('sync-pill').classList.toggle('hidden-view', none);
