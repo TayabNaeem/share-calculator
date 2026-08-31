@@ -1218,7 +1218,8 @@ function viewShare(){
     const only = shareMemberOnly();   // '' = full split, otherwise this member only
     const inputs = COURSES.map(c => `
         <div>
-            <label class="block text-xs font-semibold t-muted mb-1">${c.name}${(!only && SHARE_LEAD[c.id])?` · <span class="t-coral">${SHARE_LEAD[c.id]}</span>`:''}</label>
+            <label class="block text-xs font-semibold t-muted mb-1">${c.name}${(!only && batchLead(b, c.id))?` · <span class="t-coral">${esc(batchLead(b, c.id))}</span>`:''}</label>
+            ${only ? '' : leadPicker(b, c.id)}
             <div class="field readonly-field">
                 <span class="t-muted text-xs font-semibold">Rs</span>
                 <span class="num font-bold ${per[c.id]>0?'text-ink':(per[c.id]<0?'t-coral':'t-muted')}">${Math.round(per[c.id]).toLocaleString()}</span>
@@ -1309,6 +1310,27 @@ function viewShare(){
         </div>
     </div>`;
 }
+/* Per-batch lead picker. Shows who earns this course's 12% in THIS batch, and
+   marks whether that is the company default or an override for this batch. */
+function leadPicker(b, courseId){
+    const current = batchLead(b, courseId);
+    const raw = (b.leads || {})[courseId];
+    const overridden = raw !== undefined && raw !== null && raw !== '';
+    const opts = ['<option value="">Company default' + (SHARE_LEAD[courseId] ? ' (' + esc(SHARE_LEAD[courseId]) + ')' : ' (no lead)') + '</option>',
+                  '<option value="__none__"' + (raw === '__none__' ? ' selected' : '') + '>No lead — split 24% evenly</option>']
+        .concat(TEAM.map(n => '<option value="' + esc(n) + '"' + (raw === n ? ' selected' : '') + '>' + esc(n) + ' earns 12%</option>')).join('');
+    return `<select class="edit-only field mt-1 text-xs" style="padding:.4rem .6rem"
+                onchange="setBatchLead('${courseId}', this.value)"
+                title="Who teaches ${esc(COURSE_NAME[courseId] || courseId)} in ${esc(b.name)}">${opts}</select>
+            ${overridden ? `<p class="text-[10px] t-coral mt-1 edit-only">Set for ${esc(b.name)}${current ? '' : ' · no lead'}</p>` : ''}`;
+}
+window.setBatchLead = (courseId, value) => {
+    const b = activeBatch();
+    if (!b.leads || typeof b.leads !== 'object') b.leads = {};
+    if (value) b.leads[courseId] = value;   // a name, or '__none__'
+    else delete b.leads[courseId];          // back to the company default
+    save(); render();
+};
 function SHARE_LEAD_BY_NAME(name){ return Object.values(SHARE_LEAD).includes(name); }
 window.setSettledPct = (pct) => {
     if (window.__getRole && window.__getRole() === 'viewer') return;
@@ -1329,9 +1351,10 @@ window.downloadShareReport = () => {
     const company = (state && state.companyName) || 'Skillmentor.pk';
     const teamPool = TEAM.reduce((a,n)=>a+d.team[n],0);
     const revRows = COURSES.filter(c=>num(d.per[c.id])!==0)
-        .map(c=>`<tr><td>${esc(c.name)}${SHARE_LEAD[c.id]?` <span class="lead">(lead: ${esc(SHARE_LEAD[c.id])})</span>`:''}</td><td class="r">${money(d.per[c.id])}</td></tr>`).join('')
+        .map(c=>`<tr><td>${esc(c.name)}${batchLead(b, c.id)?` <span class="lead">(lead: ${esc(batchLead(b, c.id))})</span>`:''}</td><td class="r">${money(d.per[c.id])}</td></tr>`).join('')
         || `<tr><td colspan="2" class="muted">No revenue recorded for this batch.</td></tr>`;
-    const teamRows = TEAM.map(n=>`<tr><td>${esc(n)}${SHARE_LEAD_BY_NAME(n)?` <span class="lead">(lead)</span>`:''}</td><td class="r">${money(d.team[n])}</td></tr>`).join('');
+    const leadsHere = COURSES.map(c => batchLead(b, c.id)).filter(Boolean);
+    const teamRows = TEAM.map(n=>`<tr><td>${esc(n)}${leadsHere.includes(n)?` <span class="lead">(lead)</span>`:''}</td><td class="r">${money(d.team[n])}</td></tr>`).join('');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Profit Share — ${esc(b.name)}</title>
 <style>
  body{font-family:Arial,Helvetica,sans-serif;color:#001632;max-width:760px;margin:24px auto;padding:0 20px;}

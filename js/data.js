@@ -18,8 +18,8 @@ function seedState(){
         fund: { additions: [], expenses: [] },
         otherPayments: [],
         batches: [
-            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' },
-            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' },
+            { id:'b_batch2', name:'Batch 2', students:[], previous:[], refunds:[], pending:[], share:{}, leads:{}, shareSettled:false, settledPct:0, settledAt:'' },
+            { id, name:'Batch 5', students:[], previous:[], refunds:[], pending:[], share:{}, leads:{}, shareSettled:false, settledPct:0, settledAt:'' },
         ],
         activeBatchId: id,
     };
@@ -65,6 +65,7 @@ window.__loadState = (incoming) => {
                 students: (b.students||[]).map(normalizeStudent),
                 previous, refunds, pending,
                 share: b.share || {},
+                leads: (b.leads && typeof b.leads === 'object') ? b.leads : {},
                 shareSettled: !!b.shareSettled,
                 settledPct: (b.settledPct != null ? num(b.settledPct) : (b.shareSettled ? 100 : 0)),
                 settledAt: b.settledAt || '',
@@ -157,6 +158,15 @@ function programLabel(s){
 }
 
 /* ---------- Batch-level calculations ---------- */
+/* Who earns the 12% lead share for a course in this batch.
+   A per-batch assignment overrides the company-wide default in SHARE_LEAD.
+   '__none__' is an explicit "no lead here", distinct from "not set". */
+function batchLead(b, courseId){
+    const v = b && b.leads ? b.leads[courseId] : undefined;
+    if (v === '__none__') return '';
+    if (typeof v === 'string' && v && TEAM.includes(v)) return v;
+    return SHARE_LEAD[courseId] || '';
+}
 function batchRefundTotal(b){ return (b.refunds||[]).reduce((a,r)=>a+num(r.amount),0); }
 function normalizePending(p){
     return {
@@ -215,7 +225,7 @@ function shareBreakdown(b){
     COURSES.forEach(c => {
         const val = num(per[c.id]); total += val;
         owner += val*0.40; future += val*0.36;
-        const lead = SHARE_LEAD[c.id];
+        const lead = batchLead(b, c.id);
         if (lead) {
             team[lead] += val*0.12;
             const split = (val*0.12)/(TEAM.length-1);
