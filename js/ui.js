@@ -1222,7 +1222,7 @@ function viewShare(){
         <div class="svc-row">
             <div class="min-w-0">
                 <p class="svc-name">${c.name}</p>
-                ${only ? '' : leadPicker(b, c.id)}
+                ${only ? '' : leadLine(b, c.id)}
             </div>
             <p class="svc-amt num ${val>0?'text-ink':(val<0?'t-coral':'t-muted')}">${money(val)}</p>
         </div>`;
@@ -1289,7 +1289,10 @@ function viewShare(){
         </div>`}
         <div class="grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-8">
             ${only ? '' : `<div>
-                <h3 class="text-xs font-bold t-muted uppercase tracking-widest mb-2">Revenue by Service (net)</h3>
+                <div class="flex items-start justify-between gap-3 mb-2">
+                    <h3 class="text-xs font-bold t-muted uppercase tracking-widest">Revenue by Service (net)</h3>
+                    <button onclick="openCourseLeads()" class="owner-only btn-ghost px-2.5 py-1 rounded-lg text-[11px] font-bold text-ink-70 inline-flex items-center gap-1.5 whitespace-nowrap">${ic('user-cog','w-3.5 h-3.5')} Course leads</button>
+                </div>
                 <p class="text-xs t-muted mb-4">Current + previous-batch received − refunds, with each bundle fee split equally across its courses.</p>
                 <div class="svc-list">${inputs}</div>
             </div>`}
@@ -1314,24 +1317,37 @@ function viewShare(){
 }
 /* Per-batch lead picker. Shows who earns this course's 12% in THIS batch, and
    marks whether that is the company default or an override for this batch. */
-function leadPicker(b, courseId){
+/* One quiet line under the course name — who earns its 12% in this batch. */
+function leadLine(b, courseId){
     const current = batchLead(b, courseId);
     const raw = (b.leads || {})[courseId];
     const overridden = raw !== undefined && raw !== null && raw !== '';
-    const opts = ['<option value="">Company default' + (SHARE_LEAD[courseId] ? ' (' + esc(SHARE_LEAD[courseId]) + ')' : ' (no lead)') + '</option>',
-                  '<option value="__none__"' + (raw === '__none__' ? ' selected' : '') + '>No lead — split 24% evenly</option>']
-        .concat(TEAM.map(n => '<option value="' + esc(n) + '"' + (raw === n ? ' selected' : '') + '>' + esc(n) + ' earns 12%</option>')).join('');
-    const label = current || 'No lead';
-    const title = overridden
-        ? `Set for ${esc(b.name)} — overrides the company default`
-        : `Who teaches ${esc(COURSE_NAME[courseId] || courseId)} in ${esc(b.name)}`;
-    return `<div class="svc-lead">
+    return `<p class="svc-lead">
         <span class="svc-lead-tag">Lead</span>
-        <select class="lead-select owner-only${overridden ? ' is-override' : ''}"
-                onchange="setBatchLead('${courseId}', this.value)" title="${title}">${opts}</select>
-        <span class="lead-static${current ? '' : ' is-none'}">${esc(label)}</span>
-    </div>`;
+        <span class="${current ? 'svc-lead-name' : 'svc-lead-none'}">${esc(current || 'None')}</span>
+        ${overridden ? `<span class="svc-lead-dot" title="Set for ${esc(b.name)}"></span>` : ''}
+    </p>`;
 }
+/* Assigning leads lives in its own dialog, so the revenue list stays a list. */
+window.openCourseLeads = () => {
+    if (!window.__getRole || window.__getRole() !== 'owner') return;
+    const b = activeBatch();
+    const rows = COURSES.map(c => {
+        const raw = (b.leads || {})[c.id];
+        const def = SHARE_LEAD[c.id];
+        const opts = ['<option value="">Company default · ' + esc(def || 'no lead') + '</option>',
+                      '<option value="__none__"' + (raw === '__none__' ? ' selected' : '') + '>No lead · split 24% evenly</option>']
+            .concat(TEAM.map(n => '<option value="' + esc(n) + '"' + (raw === n ? ' selected' : '') + '>' + esc(n) + ' · earns 12%</option>')).join('');
+        return `<div class="lead-edit-row">
+            <span class="lead-edit-name">${esc(c.name)}</span>
+            <select class="field lead-edit-select" onchange="setBatchLead('${c.id}', this.value)">${opts}</select>
+        </div>`;
+    }).join('');
+    plainModal(`Course leads · <span class="t-coral">${esc(b.name)}</span>`, `
+        <p class="text-xs t-muted mb-4">The lead earns 12% of their course's revenue; the other 12% of the pool is split among the rest. Applies to this batch only.</p>
+        <div class="space-y-2.5">${rows}</div>
+        <div class="flex justify-end mt-6"><button onclick="closeModal()" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Done</button></div>`);
+};
 window.setBatchLead = (courseId, value) => {
     // Owner only — admins can edit payments but not who earns a course's lead share.
     if (!window.__getRole || window.__getRole() !== 'owner') return;
@@ -1340,6 +1356,7 @@ window.setBatchLead = (courseId, value) => {
     if (value) b.leads[courseId] = value;   // a name, or '__none__'
     else delete b.leads[courseId];          // back to the company default
     save(); render();
+    if (document.querySelector('.lead-edit-row')) openCourseLeads();   // refresh the open dialog
 };
 function SHARE_LEAD_BY_NAME(name){ return Object.values(SHARE_LEAD).includes(name); }
 window.setSettledPct = (pct) => {
