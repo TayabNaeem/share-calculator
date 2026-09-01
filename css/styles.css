@@ -334,3 +334,12 @@ body:not(.role-owner) .owner-only { display: none !important; }
 .filter-note b { color: var(--ink); }
 .filter-note svg { color: var(--coral); }
 .filter-clear { font-weight: 700; color: var(--coral); text-decoration: underline; margin-left: auto; }
+
+.clear-filters {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; color: var(--coral);
+    padding: 7px 12px; border-radius: 11px;
+    background: rgba(225,75,94,0.09); border: 1px solid rgba(225,75,94,0.26);
+    transition: background .16s, border-color .16s;
+}
+.clear-filters:hover { background: rgba(225,75,94,0.16); border-color: rgba(225,75,94,0.45); }

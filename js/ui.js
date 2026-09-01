@@ -87,7 +87,15 @@ let courseFilter = '', sessionFilter = '', modeFilter = '';
 window.setCourseFilter  = (v) => { courseFilter  = v || ''; render(); };
 window.setSessionFilter = (v) => { sessionFilter = v || ''; render(); };
 window.setModeFilter    = (v) => { modeFilter    = v || ''; render(); };
-window.clearListFilters = () => { courseFilter = sessionFilter = modeFilter = ''; render(); };
+window.clearListFilters = () => {
+    courseFilter = sessionFilter = modeFilter = '';
+    enrollSort = 'none';
+    render();
+};
+/* Is anything narrowing or reordering this tab's list right now? */
+function anyListFilterActive(opts){
+    return activeFilterLabels(opts).length > 0 || enrollSort !== 'none';
+}
 
 function studentMatches(s, opts){
     opts = opts || {};
@@ -125,7 +133,10 @@ function listControls(opts){
         [['','All types'], ['batch','Normal batch'], ['1on1','1-on-1']]);
     if (opts.mode !== false) bar += filterSelect('Mode', modeFilter, 'setModeFilter',
         [['','All modes'], ['online','Online'], ['physical','Physical']]);
-    return `<div class="flex flex-wrap items-center justify-end gap-2 mb-3">${bar}${dateSortControl()}</div>`;
+    const clear = anyListFilterActive(opts)
+        ? `<button onclick="clearListFilters()" class="clear-filters" title="Reset every filter and the sort">${ic('filter-x','w-3.5 h-3.5')} Clear all</button>`
+        : '';
+    return `<div class="flex flex-wrap items-center justify-end gap-2 mb-3">${bar}${dateSortControl()}${clear}</div>`;
 }
 /* Says what is being shown while any filter is on. */
 function filterNote(shown, total, opts){
