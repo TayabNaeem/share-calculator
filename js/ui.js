@@ -117,33 +117,73 @@ function activeFilterLabels(opts){
     if (opts.mode !== false && modeFilter) out.push(modeFilter === 'physical' ? 'Physical' : 'Online');
     return out;
 }
-function filterSelect(label, value, setter, options){
-    const opts = options.map(o => `<option value="${o[0]}"${value===o[0]?' selected':''}>${esc(o[1])}</option>`).join('');
-    return `<div class="inline-flex items-center gap-1 p-1 rounded-xl btn-ghost">
-        <span class="text-[10px] font-bold t-muted uppercase tracking-wider px-2">${label}</span>
-        <select class="list-filter${value?' is-on':''}" onchange="${setter}(this.value)">${opts}</select>
+let filtersOpen = false;
+window.toggleFilters = (e) => { if (e) e.stopPropagation(); filtersOpen = !filtersOpen; render(); };
+/* Close the popover on any click outside it. Registered once; render() rebuilds the
+   markup but filtersOpen lives out here, so the panel survives a filter change. */
+document.addEventListener('click', (e) => {
+    if (!filtersOpen || e.target.closest('.filter-wrap')) return;
+    filtersOpen = false;
+    if (state) render();
+});
+function activeFilterCount(opts){ return activeFilterLabels(opts).length; }
+
+/* Chips for what is applied, each removable on its own. */
+function filterChips(opts){
+    opts = opts || {};
+    const chips = [];
+    if (courseFilter) chips.push(['Course', COURSE_NAME[courseFilter] || courseFilter, "setCourseFilter('')"]);
+    if (opts.session !== false && sessionFilter) chips.push(['Type', sessionFilter === '1on1' ? '1-on-1' : 'Normal batch', "setSessionFilter('')"]);
+    if (opts.mode !== false && modeFilter) chips.push(['Mode', modeFilter === 'physical' ? 'Physical' : 'Online', "setModeFilter('')"]);
+    if (enrollSort !== 'none') chips.push(['Date', enrollSort === 'asc' ? 'Oldest first' : 'Newest first', "setEnrollSort('none')"]);
+    if (!chips.length) return '';
+    return chips.map(([k, v, fn]) => `<span class="fchip"><span class="fchip-k">${k}</span>${esc(v)}
+        <button onclick="${fn}" title="Remove">${ic('x','w-3 h-3')}</button></span>`).join('')
+        + `<button onclick="clearListFilters()" class="fchip-clear">Clear all</button>`;
+}
+function filterPanel(opts){
+    opts = opts || {};
+    const sel = (label, value, setter, options) => `
+        <div class="fp-row">
+            <label class="fp-label">${label}</label>
+            <select class="fp-select" onchange="${setter}(this.value)">${
+                options.map(o => `<option value="${o[0]}"${value===o[0]?' selected':''}>${esc(o[1])}</option>`).join('')
+            }</select>
+        </div>`;
+    const seg = (v, l) => `<button onclick="setEnrollSort('${v}')" class="fp-seg${enrollSort===v?' is-on':''}">${l}</button>`;
+    return `<div class="filter-panel pop-in">
+        <div class="fp-head">
+            <span>Filters</span>
+            ${anyListFilterActive(opts) ? `<button onclick="clearListFilters()" class="fp-reset">Reset</button>` : ''}
+        </div>
+        ${sel('Course', courseFilter, 'setCourseFilter', [['','All courses']].concat(COURSES.map(c => [c.id, c.name])))}
+        ${opts.session !== false ? sel('Type', sessionFilter, 'setSessionFilter', [['','All types'],['batch','Normal batch'],['1on1','1-on-1']]) : ''}
+        ${opts.mode !== false ? sel('Mode', modeFilter, 'setModeFilter', [['','All modes'],['online','Online'],['physical','Physical']]) : ''}
+        <div class="fp-row">
+            <label class="fp-label">Sort by date</label>
+            <div class="fp-seg-group">${seg('none','Default')}${seg('asc','Oldest')}${seg('desc','Newest')}</div>
+        </div>
     </div>`;
 }
-/* One bar: the filters this tab can use, then the date sort. */
-function listControls(opts){
+/* The whole toolbar: how many rows are showing, the chips, and the Filters button. */
+function listControls(opts, shown, total){
     opts = opts || {};
-    let bar = filterSelect('Course', courseFilter, 'setCourseFilter',
-        [['','All courses']].concat(COURSES.map(c => [c.id, c.name])));
-    if (opts.session !== false) bar += filterSelect('Type', sessionFilter, 'setSessionFilter',
-        [['','All types'], ['batch','Normal batch'], ['1on1','1-on-1']]);
-    if (opts.mode !== false) bar += filterSelect('Mode', modeFilter, 'setModeFilter',
-        [['','All modes'], ['online','Online'], ['physical','Physical']]);
-    const clear = anyListFilterActive(opts)
-        ? `<button onclick="clearListFilters()" class="clear-filters" title="Reset every filter and the sort">${ic('filter-x','w-3.5 h-3.5')} Clear all</button>`
-        : '';
-    return `<div class="flex flex-wrap items-center justify-end gap-2 mb-3">${bar}${dateSortControl()}${clear}</div>`;
-}
-/* Says what is being shown while any filter is on. */
-function filterNote(shown, total, opts){
-    const labels = activeFilterLabels(opts);
-    if (!labels.length) return '';
-    return `<p class="filter-note">${ic('funnel','w-3.5 h-3.5')} Showing <b>${shown}</b> of ${total} — ${labels.map(esc).join(' · ')}
-        <button onclick="clearListFilters()" class="filter-clear">Clear</button></p>`;
+    const n = activeFilterCount(opts);
+    const filtered = anyListFilterActive(opts);
+    return `<div class="list-toolbar">
+        <span class="list-count">${filtered && total != null
+            ? `Showing <b>${shown}</b> of ${total}`
+            : `<b>${total != null ? total : shown}</b> student${(total != null ? total : shown) === 1 ? '' : 's'}`}</span>
+        <div class="list-toolbar-end">
+            ${filterChips(opts)}
+            <div class="filter-wrap">
+                <button onclick="toggleFilters(event)" class="filter-btn${filtered ? ' is-on' : ''}" aria-expanded="${filtersOpen}">
+                    ${ic('sliders-horizontal','w-4 h-4')} Filters${n ? `<span class="filter-count">${n}</span>` : ''}
+                </button>
+                ${filtersOpen ? filterPanel(opts) : ''}
+            </div>
+        </div>
+    </div>`;
 }
 function dateSortControl(){
     const opt = (v, label, icon) => `<button onclick="setEnrollSort('${v}')" class="px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition ${enrollSort===v?'btn-primary':'t-muted hover:text-[#001632]'}">${icon?ic(icon,'w-3.5 h-3.5'):''}${label}</button>`;
@@ -373,8 +413,7 @@ function viewStudents(){
             </div>
         </div>
         ${rpSummary(shownStudents.length, activeFilterLabels().join(' · ') || 'Students', rec, pen)}
-        ${filterNote(shownStudents.length, b.students.length)}
-        ${listControls()}
+        ${listControls({}, shownStudents.length, b.students.length)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr>
@@ -581,8 +620,7 @@ function viewOneOnOne(){
             <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches)</p>
         </div>
         ${rpSummary(list.length, activeFilterLabels({session:false}).join(' · ') || '1-on-1 Students', rec, pen)}
-        ${filterNote(list.length, totalCount, {session:false})}
-        ${listControls({session:false})}
+        ${listControls({session:false}, list.length, totalCount)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -634,8 +672,7 @@ function viewPhysical(){
             <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches)</p>
         </div>
         ${rpSummary(list.length, activeFilterLabels({mode:false}).join(' · ') || 'Physical Students', rec, pen)}
-        ${filterNote(list.length, totalCount, {mode:false})}
-        ${listControls({mode:false})}
+        ${listControls({mode:false}, list.length, totalCount)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -742,8 +779,8 @@ function viewBreakdown(){
             </table>
         </div>`;
     }).join('');
-    const rec = shownStudents.reduce((a,s)=>a+num(s.feePaid),0);
-    const pen = shownStudents.reduce((a,s)=>a+num(s.feePending),0);
+    const rec = b.students.reduce((a,s)=>a+num(s.feePaid),0);
+    const pen = b.students.reduce((a,s)=>a+num(s.feePending),0);
     const prev = batchPrevReceived(b), prevPen = batchPrevPending(b);
     return `
     <div class="space-y-5">
