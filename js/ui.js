@@ -78,36 +78,61 @@ function sortByDate(arr, getDate){
         return (a - b) * dir;
     });
 }
-/* Course filter — '' shows everything. A student matches if the course is in
-   their selection, whether they bought it alone or inside a bundle. */
-let courseFilter = '';
-window.setCourseFilter = (id) => { courseFilter = id || ''; render(); };
-function studentInCourse(s){
-    if (!courseFilter) return true;
-    return Array.isArray(s.courses) && s.courses.includes(courseFilter);
+/* List filters — '' means "all". A student matches a course filter if the course
+   is in their selection, whether bought alone or inside a bundle.
+   opts lets a tab skip a dimension it has already fixed: the 1-on-1 tab ignores
+   the session filter and the Physical tab ignores the mode filter, so a filter
+   set elsewhere cannot empty those lists for no visible reason. */
+let courseFilter = '', sessionFilter = '', modeFilter = '';
+window.setCourseFilter  = (v) => { courseFilter  = v || ''; render(); };
+window.setSessionFilter = (v) => { sessionFilter = v || ''; render(); };
+window.setModeFilter    = (v) => { modeFilter    = v || ''; render(); };
+window.clearListFilters = () => { courseFilter = sessionFilter = modeFilter = ''; render(); };
+
+function studentMatches(s, opts){
+    opts = opts || {};
+    if (courseFilter && !(Array.isArray(s.courses) && s.courses.includes(courseFilter))) return false;
+    if (opts.session !== false && sessionFilter &&
+        (s.sessionType === '1on1' ? '1on1' : 'batch') !== sessionFilter) return false;
+    if (opts.mode !== false && modeFilter &&
+        (s.mode === 'physical' ? 'physical' : 'online') !== modeFilter) return false;
+    return true;
 }
-function filterStudents(list, get){
-    if (!courseFilter) return list;
-    return list.filter(x => studentInCourse(get ? get(x) : x));
+function filterStudents(list, get, opts){
+    return list.filter(x => studentMatches(get ? get(x) : x, opts));
 }
-function courseFilterControl(){
-    const opts = ['<option value="">All courses</option>']
-        .concat(COURSES.map(c => `<option value="${c.id}"${courseFilter===c.id?' selected':''}>${esc(c.name)}</option>`)).join('');
+function activeFilterLabels(opts){
+    opts = opts || {};
+    const out = [];
+    if (courseFilter) out.push(COURSE_NAME[courseFilter] || courseFilter);
+    if (opts.session !== false && sessionFilter) out.push(sessionFilter === '1on1' ? '1-on-1' : 'Normal batch');
+    if (opts.mode !== false && modeFilter) out.push(modeFilter === 'physical' ? 'Physical' : 'Online');
+    return out;
+}
+function filterSelect(label, value, setter, options){
+    const opts = options.map(o => `<option value="${o[0]}"${value===o[0]?' selected':''}>${esc(o[1])}</option>`).join('');
     return `<div class="inline-flex items-center gap-1 p-1 rounded-xl btn-ghost">
-        <span class="text-[10px] font-bold t-muted uppercase tracking-wider px-2">Course</span>
-        <select class="course-filter${courseFilter?' is-on':''}" onchange="setCourseFilter(this.value)">${opts}</select>
-        ${courseFilter?`<button onclick="setCourseFilter('')" class="icon-btn" style="width:26px;height:26px" title="Clear filter">${ic('x','w-3.5 h-3.5')}</button>`:''}
+        <span class="text-[10px] font-bold t-muted uppercase tracking-wider px-2">${label}</span>
+        <select class="list-filter${value?' is-on':''}" onchange="${setter}(this.value)">${opts}</select>
     </div>`;
 }
-/* One bar holding both controls. */
-function listControls(){
-    return `<div class="flex flex-wrap items-center justify-end gap-2 mb-3">${courseFilterControl()}${dateSortControl()}</div>`;
+/* One bar: the filters this tab can use, then the date sort. */
+function listControls(opts){
+    opts = opts || {};
+    let bar = filterSelect('Course', courseFilter, 'setCourseFilter',
+        [['','All courses']].concat(COURSES.map(c => [c.id, c.name])));
+    if (opts.session !== false) bar += filterSelect('Type', sessionFilter, 'setSessionFilter',
+        [['','All types'], ['batch','Normal batch'], ['1on1','1-on-1']]);
+    if (opts.mode !== false) bar += filterSelect('Mode', modeFilter, 'setModeFilter',
+        [['','All modes'], ['online','Online'], ['physical','Physical']]);
+    return `<div class="flex flex-wrap items-center justify-end gap-2 mb-3">${bar}${dateSortControl()}</div>`;
 }
-/* Says what is being shown when a filter is on. */
-function filterNote(shown, total){
-    if (!courseFilter) return '';
-    return `<p class="filter-note">${ic('funnel','w-3.5 h-3.5')} Showing <b>${shown}</b> of ${total} — ${esc(COURSE_NAME[courseFilter]||courseFilter)}
-        <button onclick="setCourseFilter('')" class="filter-clear">Clear</button></p>`;
+/* Says what is being shown while any filter is on. */
+function filterNote(shown, total, opts){
+    const labels = activeFilterLabels(opts);
+    if (!labels.length) return '';
+    return `<p class="filter-note">${ic('funnel','w-3.5 h-3.5')} Showing <b>${shown}</b> of ${total} — ${labels.map(esc).join(' · ')}
+        <button onclick="clearListFilters()" class="filter-clear">Clear</button></p>`;
 }
 function dateSortControl(){
     const opt = (v, label, icon) => `<button onclick="setEnrollSort('${v}')" class="px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition ${enrollSort===v?'btn-primary':'t-muted hover:text-[#001632]'}">${icon?ic(icon,'w-3.5 h-3.5'):''}${label}</button>`;
@@ -336,7 +361,7 @@ function viewStudents(){
                 <button onclick="openStudentModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('user-plus','w-4 h-4')} Add Student</button>
             </div>
         </div>
-        ${rpSummary(shownStudents.length, courseFilter ? esc(COURSE_NAME[courseFilter]||'Students') : 'Students', rec, pen)}
+        ${rpSummary(shownStudents.length, activeFilterLabels().join(' · ') || 'Students', rec, pen)}
         ${filterNote(shownStudents.length, b.students.length)}
         ${listControls()}
         <div class="overflow-x-auto">
@@ -345,7 +370,7 @@ function viewStudents(){
                     <th>#</th><th>Name</th><th>Contact</th><th>Date</th><th>Bundle</th><th>Program</th>
                     <th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th>
                 </tr></thead>
-                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-10">${courseFilter ? `No students taking <b class="t-coral">${esc(COURSE_NAME[courseFilter]||'')}</b> in this batch.` : 'No students yet. Click <b class="t-coral">Add Student</b> to start.'}</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-10">${activeFilterLabels().length ? `No students match <b class="t-coral">${esc(activeFilterLabels().join(' · '))}</b> in this batch.` : 'No students yet. Click <b class="t-coral">Add Student</b> to start.'}</td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -509,7 +534,8 @@ window.deleteStudentFrom = (bid, sid) => {
 function viewOneOnOne(){
     let list = [];
     state.batches.forEach(b => b.students.forEach(s => { if (s.sessionType === '1on1') list.push({ b, s }); }));
-    list = filterStudents(list, x => x.s);
+    const totalCount = list.length;
+    list = filterStudents(list, x => x.s, { session:false });
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
     const rows = sortByDate(list, x => dateSortKey(x.s, x.b)).map(({b,s}) => {
@@ -543,8 +569,9 @@ function viewOneOnOne(){
             <h2 class="text-xl font-bold text-ink">1-on-1 Training</h2>
             <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches)</p>
         </div>
-        ${rpSummary(list.length, courseFilter ? esc(COURSE_NAME[courseFilter]||'Students') : '1-on-1 Students', rec, pen)}
-        ${listControls()}
+        ${rpSummary(list.length, activeFilterLabels({session:false}).join(' · ') || '1-on-1 Students', rec, pen)}
+        ${filterNote(list.length, totalCount, {session:false})}
+        ${listControls({session:false})}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -560,7 +587,8 @@ function viewOneOnOne(){
 function viewPhysical(){
     let list = [];
     state.batches.forEach(b => b.students.forEach(s => { if (s.mode === 'physical') list.push({ b, s }); }));
-    list = filterStudents(list, x => x.s);
+    const totalCount = list.length;
+    list = filterStudents(list, x => x.s, { mode:false });
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
     const rows = sortByDate(list, x => dateSortKey(x.s, x.b)).map(({b,s}) => {
@@ -594,8 +622,9 @@ function viewPhysical(){
             <h2 class="text-xl font-bold text-ink flex items-center gap-2">${ic('map-pin','w-5 h-5 text-[#E14B5E]')} Physical Batch Students</h2>
             <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches)</p>
         </div>
-        ${rpSummary(list.length, courseFilter ? esc(COURSE_NAME[courseFilter]||'Students') : 'Physical Students', rec, pen)}
-        ${listControls()}
+        ${rpSummary(list.length, activeFilterLabels({mode:false}).join(' · ') || 'Physical Students', rec, pen)}
+        ${filterNote(list.length, totalCount, {mode:false})}
+        ${listControls({mode:false})}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>

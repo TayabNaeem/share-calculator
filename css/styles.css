@@ -313,7 +313,7 @@ body:not(.role-owner) .owner-only { display: none !important; }
 .lead-edit-select { flex: 1; font-size: .8rem; padding: .5rem .7rem; }
 
 /* Course filter on the student lists */
-.course-filter {
+.list-filter {
     -webkit-appearance: none; appearance: none;
     font-family: inherit; font-size: 12px; font-weight: 700; color: var(--ink);
     background-color: transparent; border: 0; cursor: pointer;
@@ -321,9 +321,9 @@ body:not(.role-owner) .owner-only { display: none !important; }
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%235b6577' stroke-width='2' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 6px center;
 }
-.course-filter:hover { background-color: rgba(0,22,50,0.05); }
-.course-filter:focus { outline: none; box-shadow: 0 0 0 3px rgba(225,75,94,0.15); }
-.course-filter.is-on { color: var(--coral); background-color: rgba(225,75,94,0.10); }
+.list-filter:hover { background-color: rgba(0,22,50,0.05); }
+.list-filter:focus { outline: none; box-shadow: 0 0 0 3px rgba(225,75,94,0.15); }
+.list-filter.is-on { color: var(--coral); background-color: rgba(225,75,94,0.10); }
 
 .filter-note {
     display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
