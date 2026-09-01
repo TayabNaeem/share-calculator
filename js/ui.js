@@ -78,6 +78,37 @@ function sortByDate(arr, getDate){
         return (a - b) * dir;
     });
 }
+/* Course filter — '' shows everything. A student matches if the course is in
+   their selection, whether they bought it alone or inside a bundle. */
+let courseFilter = '';
+window.setCourseFilter = (id) => { courseFilter = id || ''; render(); };
+function studentInCourse(s){
+    if (!courseFilter) return true;
+    return Array.isArray(s.courses) && s.courses.includes(courseFilter);
+}
+function filterStudents(list, get){
+    if (!courseFilter) return list;
+    return list.filter(x => studentInCourse(get ? get(x) : x));
+}
+function courseFilterControl(){
+    const opts = ['<option value="">All courses</option>']
+        .concat(COURSES.map(c => `<option value="${c.id}"${courseFilter===c.id?' selected':''}>${esc(c.name)}</option>`)).join('');
+    return `<div class="inline-flex items-center gap-1 p-1 rounded-xl btn-ghost">
+        <span class="text-[10px] font-bold t-muted uppercase tracking-wider px-2">Course</span>
+        <select class="course-filter${courseFilter?' is-on':''}" onchange="setCourseFilter(this.value)">${opts}</select>
+        ${courseFilter?`<button onclick="setCourseFilter('')" class="icon-btn" style="width:26px;height:26px" title="Clear filter">${ic('x','w-3.5 h-3.5')}</button>`:''}
+    </div>`;
+}
+/* One bar holding both controls. */
+function listControls(){
+    return `<div class="flex flex-wrap items-center justify-end gap-2 mb-3">${courseFilterControl()}${dateSortControl()}</div>`;
+}
+/* Says what is being shown when a filter is on. */
+function filterNote(shown, total){
+    if (!courseFilter) return '';
+    return `<p class="filter-note">${ic('funnel','w-3.5 h-3.5')} Showing <b>${shown}</b> of ${total} — ${esc(COURSE_NAME[courseFilter]||courseFilter)}
+        <button onclick="setCourseFilter('')" class="filter-clear">Clear</button></p>`;
+}
 function dateSortControl(){
     const opt = (v, label, icon) => `<button onclick="setEnrollSort('${v}')" class="px-3 py-1.5 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition ${enrollSort===v?'btn-primary':'t-muted hover:text-[#001632]'}">${icon?ic(icon,'w-3.5 h-3.5'):''}${label}</button>`;
     return `<div class="inline-flex items-center gap-1 p-1 rounded-xl btn-ghost">
@@ -263,7 +294,8 @@ function modeBadge(mode){
    ===================================================================== */
 function viewStudents(){
     const b = activeBatch();
-    const rows = sortByDate(b.students, s => dateSortKey(s, b)).map((s,i) => {
+    const shownStudents = filterStudents(b.students);
+    const rows = sortByDate(shownStudents, s => dateSortKey(s, b)).map((s,i) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 100;
         const onInst = num(s.feePending) > 0;
@@ -289,14 +321,14 @@ function viewStudents(){
             </td>
         </tr>`;
     }).join('');
-    const rec = b.students.reduce((a,s)=>a+num(s.feePaid),0);
-    const pen = b.students.reduce((a,s)=>a+num(s.feePending),0);
+    const rec = shownStudents.reduce((a,s)=>a+num(s.feePaid),0);
+    const pen = shownStudents.reduce((a,s)=>a+num(s.feePending),0);
     return `
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div>
                 <h2 class="text-xl font-bold text-ink">${esc(b.name)} — Students</h2>
-                <p class="t-muted text-sm">${b.students.length} enrolled · <span class="t-gold">${money(rec)}</span> received · <span class="t-coral">${money(pen)}</span> pending</p>
+                <p class="t-muted text-sm">${shownStudents.length} enrolled · <span class="t-gold">${money(rec)}</span> received · <span class="t-coral">${money(pen)}</span> pending</p>
             </div>
             <div class="flex gap-2">
                 <button onclick="openBatchModal()" class="edit-only btn-ghost px-3.5 py-2.5 rounded-xl text-sm font-semibold text-ink-70 hover:text-[#001632] inline-flex items-center gap-1.5">${ic('pencil','w-4 h-4')} Edit batch</button>
@@ -304,15 +336,16 @@ function viewStudents(){
                 <button onclick="openStudentModal()" class="edit-only btn-primary px-5 py-2.5 rounded-xl font-bold text-sm inline-flex items-center gap-1.5">${ic('user-plus','w-4 h-4')} Add Student</button>
             </div>
         </div>
-        ${rpSummary(b.students.length, 'Students', rec, pen)}
-        <div class="flex justify-end mb-3">${dateSortControl()}</div>
+        ${rpSummary(shownStudents.length, courseFilter ? esc(COURSE_NAME[courseFilter]||'Students') : 'Students', rec, pen)}
+        ${filterNote(shownStudents.length, b.students.length)}
+        ${listControls()}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr>
                     <th>#</th><th>Name</th><th>Contact</th><th>Date</th><th>Bundle</th><th>Program</th>
                     <th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th>
                 </tr></thead>
-                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-10">No students yet. Click <b class="t-coral">Add Student</b> to start.</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-10">${courseFilter ? `No students taking <b class="t-coral">${esc(COURSE_NAME[courseFilter]||'')}</b> in this batch.` : 'No students yet. Click <b class="t-coral">Add Student</b> to start.'}</td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
@@ -474,8 +507,9 @@ window.deleteStudentFrom = (bid, sid) => {
     b.students = b.students.filter(x=>x.id!==sid); save(); render();
 };
 function viewOneOnOne(){
-    const list = [];
+    let list = [];
     state.batches.forEach(b => b.students.forEach(s => { if (s.sessionType === '1on1') list.push({ b, s }); }));
+    list = filterStudents(list, x => x.s);
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
     const rows = sortByDate(list, x => dateSortKey(x.s, x.b)).map(({b,s}) => {
@@ -509,8 +543,8 @@ function viewOneOnOne(){
             <h2 class="text-xl font-bold text-ink">1-on-1 Training</h2>
             <p class="t-muted text-sm">${list.length} one-on-one student${list.length!==1?'s':''} (all batches)</p>
         </div>
-        ${rpSummary(list.length, '1-on-1 Students', rec, pen)}
-        <div class="flex justify-end mb-3">${dateSortControl()}</div>
+        ${rpSummary(list.length, courseFilter ? esc(COURSE_NAME[courseFilter]||'Students') : '1-on-1 Students', rec, pen)}
+        ${listControls()}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -524,8 +558,9 @@ function viewOneOnOne(){
    TAB: PHYSICAL BATCH (all batches, mode === 'physical')
    ===================================================================== */
 function viewPhysical(){
-    const list = [];
+    let list = [];
     state.batches.forEach(b => b.students.forEach(s => { if (s.mode === 'physical') list.push({ b, s }); }));
+    list = filterStudents(list, x => x.s);
     const rec = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const pen = list.reduce((a,x)=>a+num(x.s.feePending),0);
     const rows = sortByDate(list, x => dateSortKey(x.s, x.b)).map(({b,s}) => {
@@ -559,8 +594,8 @@ function viewPhysical(){
             <h2 class="text-xl font-bold text-ink flex items-center gap-2">${ic('map-pin','w-5 h-5 text-[#E14B5E]')} Physical Batch Students</h2>
             <p class="t-muted text-sm">${list.length} physical student${list.length!==1?'s':''} (all batches)</p>
         </div>
-        ${rpSummary(list.length, 'Physical Students', rec, pen)}
-        <div class="flex justify-end mb-3">${dateSortControl()}</div>
+        ${rpSummary(list.length, courseFilter ? esc(COURSE_NAME[courseFilter]||'Students') : 'Physical Students', rec, pen)}
+        ${listControls()}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Name</th><th>Contact</th><th>Batch</th><th>Date</th><th>Bundle</th><th>Program</th><th class="text-right">Fee Paid</th><th class="text-right">Fee Pending</th><th>Progress</th><th></th></tr></thead>
@@ -667,8 +702,8 @@ function viewBreakdown(){
             </table>
         </div>`;
     }).join('');
-    const rec = b.students.reduce((a,s)=>a+num(s.feePaid),0);
-    const pen = b.students.reduce((a,s)=>a+num(s.feePending),0);
+    const rec = shownStudents.reduce((a,s)=>a+num(s.feePaid),0);
+    const pen = shownStudents.reduce((a,s)=>a+num(s.feePending),0);
     const prev = batchPrevReceived(b), prevPen = batchPrevPending(b);
     return `
     <div class="space-y-5">
