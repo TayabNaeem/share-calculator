@@ -12,6 +12,61 @@ window.refreshIcons = refreshIcons;
     if (mr && window.MutationObserver) new MutationObserver(refreshIcons).observe(mr, { childList: true });
 })();
 
+/* =====================================================================
+   In-app dialogs — replaces the browser's confirm()/alert() chrome.
+   appConfirm resolves true/false; toast() is a short confirmation of what happened.
+   Sits above the modal layer so it can be raised from inside another dialog.
+   ===================================================================== */
+function appConfirm(opts){
+    opts = opts || {};
+    return new Promise(resolve => {
+        const host = document.createElement('div');
+        host.className = 'confirm-layer';
+        host.innerHTML = `
+            <div class="confirm-backdrop"></div>
+            <div class="confirm-card pop-in" role="alertdialog" aria-modal="true">
+                <span class="confirm-icon${opts.danger ? ' is-danger' : ''}">${ic(opts.icon || (opts.danger ? 'alert-triangle' : 'help-circle'), 'w-5 h-5')}</span>
+                <h3 class="confirm-title">${opts.title || 'Are you sure?'}</h3>
+                ${opts.message ? `<p class="confirm-msg">${opts.message}</p>` : ''}
+                <div class="confirm-actions">
+                    <button data-act="cancel" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-sm text-ink-70">${opts.cancelLabel || 'Cancel'}</button>
+                    <button data-act="ok" class="${opts.danger ? 'btn-danger' : 'btn-primary'} px-5 py-2.5 rounded-xl font-bold text-sm">${opts.confirmLabel || 'Confirm'}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(host);
+        refreshIcons();
+        const done = (v) => { document.removeEventListener('keydown', onKey); host.remove(); resolve(v); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); done(false); }
+            if (e.key === 'Enter')  { e.preventDefault(); done(true); }
+        };
+        host.querySelector('[data-act="cancel"]').onclick = () => done(false);
+        host.querySelector('[data-act="ok"]').onclick = () => done(true);
+        host.querySelector('.confirm-backdrop').onclick = () => done(false);
+        document.addEventListener('keydown', onKey);
+        setTimeout(() => { const b = host.querySelector('[data-act="ok"]'); if (b) b.focus(); }, 30);
+    });
+}
+window.appConfirm = appConfirm;
+
+let toastTimer = null;
+function toast(message, kind){
+    let host = document.getElementById('toast-host');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'toast-host';
+        document.body.appendChild(host);
+    }
+    const t = document.createElement('div');
+    t.className = 'toast' + (kind ? ' is-' + kind : '');
+    t.innerHTML = `${ic(kind === 'error' ? 'alert-circle' : 'check-circle-2', 'w-4 h-4')}<span>${message}</span>`;
+    host.appendChild(t);
+    refreshIcons();
+    clearTimeout(toastTimer);
+    setTimeout(() => { t.classList.add('is-out'); setTimeout(() => t.remove(), 240); }, 2600);
+}
+window.toast = toast;
+
 /* Today, in the same format the settled-date stamp uses (e.g. "3 Aug 2026").
    New records default to this so a forgotten date is never left blank. */
 function todayStr(){ return new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
@@ -251,10 +306,13 @@ window.renameBatch = (id) => {
     const b = state.batches.find(x=>x.id===id); if(!b) return;
     const v = prompt("Batch name:", b.name); if (v && v.trim()) { b.name = v.trim(); save(); render(); }
 };
-window.deleteBatch = (id) => {
+window.deleteBatch = async (id) => {
     if (state.batches.length <= 1) return alert("Keep at least one batch.");
     const b = state.batches.find(x=>x.id===id);
-    if (!confirm(`Delete "${b?.name}" and all its students?`)) return;
+    if (!await appConfirm({ danger:true, icon:'trash-2',
+        title:`Delete ${esc(b?.name || 'this batch')}?`,
+        message:`Its ${(b?.students||[]).length} student record${(b?.students||[]).length===1?'':'s'} and everything recorded against it will be removed. This cannot be undone.`,
+        confirmLabel:'Delete batch' })) return;
     state.batches = state.batches.filter(x=>x.id!==id);
     if (activeBatchId===id) activeBatchId = state.batches[0].id;
     save(); render();
@@ -425,10 +483,13 @@ function viewStudents(){
         </div>
     </div>`;
 }
-window.deleteStudent = (id) => {
+window.deleteStudent = async (id) => {
     const b = activeBatch();
     const s = b.students.find(x=>x.id===id);
-    if (!confirm(`Remove ${s?.name||'this student'}?`)) return;
+    if (!await appConfirm({ danger:true, icon:'user-minus',
+        title:`Remove ${esc(s?.name || 'this student')}?`,
+        message:'Their fees, payments and installment history go with them. This cannot be undone.',
+        confirmLabel:'Remove student' })) return;
     b.students = b.students.filter(x=>x.id!==id); save(); render();
 };
 
@@ -575,10 +636,13 @@ window.saveStudent = (id) => {
    TAB: 1-ON-1 TRAINING (all batches, sessionType === '1on1')
    ===================================================================== */
 window.editStudentFrom = (bid, sid) => { activeBatchId = bid; openStudentModal(sid); };
-window.deleteStudentFrom = (bid, sid) => {
+window.deleteStudentFrom = async (bid, sid) => {
     const b = state.batches.find(x=>x.id===bid); if (!b) return;
     const s = b.students.find(x=>x.id===sid);
-    if (!confirm(`Remove ${s?.name||'this student'}?`)) return;
+    if (!await appConfirm({ danger:true, icon:'user-minus',
+        title:`Remove ${esc(s?.name || 'this student')}?`,
+        message:'Their fees, payments and installment history go with them. This cannot be undone.',
+        confirmLabel:'Remove student' })) return;
     b.students = b.students.filter(x=>x.id!==sid); save(); render();
 };
 function viewOneOnOne(){
@@ -793,17 +857,23 @@ window.savePayment = (bid, sid) => {
     s.installments = s.installments || [];
     s.installments.push({ amount: amt, date: todayStr(), batchId: target.id });
     save(); closeModal(); render();
+    toast(`${money(amt)} recorded${target.id !== b.id ? ` · credited to ${esc(target.name)}` : ''}`);
 };
-window.revertInstallment = (bid, sid, idx) => {
+window.revertInstallment = async (bid, sid, idx) => {
     if (window.__getRole && window.__getRole() === 'viewer') return;
     const b = state.batches.find(x => x.id === bid); if (!b) return;
     const s = b.students.find(x => x.id === sid); if (!s) return;
     const it = (s.installments || [])[idx]; if (!it) return;
-    if (!confirm(`Undo this payment of ${money(it.amount)}?\n\nIt goes back onto ${s.name}'s pending balance and comes off ${batchName(it.batchId) !== '—' ? batchName(it.batchId) : b.name}'s revenue.`)) return;
+    const creditedTo = batchName(it.batchId) !== '—' ? batchName(it.batchId) : b.name;
+    if (!await appConfirm({ danger:true, icon:'undo-2',
+        title:`Undo payment of ${money(it.amount)}?`,
+        message:`It goes back onto <b>${esc(s.name)}</b>'s pending balance and comes off <b>${esc(creditedTo)}</b>'s revenue and profit share.`,
+        confirmLabel:'Undo payment' })) return;
     s.feePaid = Math.max(0, num(s.feePaid) - num(it.amount));
     s.feePending = num(s.feePending) + num(it.amount);
     s.installments.splice(idx, 1);
     save(); render();
+    toast(`${money(it.amount)} returned to ${esc(s.name)}'s pending balance`);
     openPaymentModal(bid, sid);   // keep the dialog open on the updated record
 };
 
@@ -906,9 +976,10 @@ function viewPrevious(){
         </div>
     </div>`;
 }
-window.deletePrevEntry = (id) => {
+window.deletePrevEntry = async (id) => {
     const b = activeBatch();
-    if (!confirm("Delete this previous-batch payment?")) return;
+    if (!await appConfirm({ danger:true, icon:'trash-2', title:'Delete this previous-batch payment?',
+        message:'The carry-forward amount will be removed from this batch.', confirmLabel:'Delete' })) return;
     b.previous = (b.previous||[]).filter(e=>e.id!==id); save(); render();
 };
 window.openPrevModal = (id) => {
@@ -987,9 +1058,10 @@ function viewRefunds(){
         </div>
     </div>`;
 }
-window.deleteRefund = (id) => {
+window.deleteRefund = async (id) => {
     const b = activeBatch();
-    if (!confirm("Delete this refund record?")) return;
+    if (!await appConfirm({ danger:true, icon:'trash-2', title:'Delete this refund record?',
+        message:'The refund will no longer be deducted from this batch.', confirmLabel:'Delete' })) return;
     b.refunds = (b.refunds||[]).filter(r=>r.id!==id); save(); render();
 };
 window.openRefundModal = (id) => {
@@ -1182,8 +1254,9 @@ window.saveFundEntry = (type, id) => {
     else list.push(normalizeFundEntry({ ...data, createdAt: Date.now() }));
     save(); closeModal(); render();
 };
-window.deleteFundEntry = (type, id) => {
-    if (!confirm("Delete this entry?")) return;
+window.deleteFundEntry = async (type, id) => {
+    if (!await appConfirm({ danger:true, icon:'trash-2', title:'Delete this entry?',
+        message:'It will be removed from the future-fund ledger.', confirmLabel:'Delete' })) return;
     if (type === 'expense') state.fund.expenses = state.fund.expenses.filter(x=>x.id!==id);
     else state.fund.additions = state.fund.additions.filter(x=>x.id!==id);
     save(); render();
@@ -1254,8 +1327,9 @@ window.saveOther = (id) => {
     else state.otherPayments.push(normalizeOther({ ...data, createdAt: Date.now() }));
     save(); closeModal(); render();
 };
-window.deleteOther = (id) => {
-    if (!confirm("Delete this payment?")) return;
+window.deleteOther = async (id) => {
+    if (!await appConfirm({ danger:true, icon:'trash-2', title:'Delete this payment?',
+        message:'It will be removed from Other payments and from any batch it was tied to.', confirmLabel:'Delete' })) return;
     state.otherPayments = (state.otherPayments||[]).filter(o=>o.id!==id); save(); render();
 };
 
