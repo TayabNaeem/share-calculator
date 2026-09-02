@@ -97,7 +97,7 @@ function viewDashboard(){
 
     // Batch performance
     const batchRows = state.batches.map(b => {
-        const rec = (b.students || []).reduce((a, s) => a + num(s.feePaid), 0) + batchPrevReceived(b) + otherForBatch(b.id);
+        const rec = batchStudentsReceived(b) + batchPrevReceived(b) + otherForBatch(b.id);
         const pen = (b.students || []).reduce((a, s) => a + num(s.feePending), 0) + batchPendingTotal(b);
         const tot = rec + pen;
         const pct = tot > 0 ? Math.round(rec / tot * 100) : 0;

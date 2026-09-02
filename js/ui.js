@@ -687,7 +687,11 @@ function viewPhysical(){
    ===================================================================== */
 function viewInstallments(){
     const list = [];
-    state.batches.forEach(b => b.students.forEach(s => { if (num(s.feePending) > 0) list.push({ b, s }); }));
+    state.batches.forEach(b => b.students.forEach(s => {
+        // Keep fully-paid students who have recorded payments, otherwise a payment
+        // could never be undone once it cleared the balance.
+        if (num(s.feePending) > 0 || (s.installments || []).length) list.push({ b, s });
+    }));
     list.sort((a,z)=> num(z.s.feePending)-num(a.s.feePending));
     const totalPending = list.reduce((a,x)=>a+num(x.s.feePending),0);
     const totalPaid = list.reduce((a,x)=>a+num(x.s.feePaid),0);
@@ -700,8 +704,11 @@ function viewInstallments(){
             <td class="text-ink-70 num">${esc(s.contact)||'<span class=\'t-muted\'>—</span>'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
             <td class="text-ink-70">${esc(programLabel(s))}</td>
-            <td class="text-right num t-gold">${money(s.feePaid)}</td>
-            <td class="text-right num t-coral font-bold">${money(s.feePending)}</td>
+            <td class="text-right num t-gold">${money(s.feePaid)}${(function(){
+                const away = creditedAway(s, b.id);
+                return away > 0 ? `<div class="text-[10px] t-muted">${money(away)} to other batches</div>` : '';
+            })()}</td>
+            <td class="text-right num font-bold ${num(s.feePending)>0?'t-coral':'t-muted'}">${num(s.feePending)>0 ? money(s.feePending) : '<span class="badge fill-1 t-muted">Cleared</span>'}</td>
             <td class="min-w-[140px]">
                 <div class="flex items-center gap-2">
                     <div class="flex-1 h-2 rounded-full fill-2 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
@@ -709,7 +716,9 @@ function viewInstallments(){
                 </div>
             </td>
             <td class="text-right">
-                <button onclick="recordPayment('${b.id}','${s.id}')" class="edit-only btn-primary text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">${ic('plus','w-3.5 h-3.5')} Record</button>
+                ${num(s.feePending) > 0
+                    ? `<button onclick="openPaymentModal('${b.id}','${s.id}')" class="edit-only btn-primary text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">${ic('plus','w-3.5 h-3.5')} Record</button>`
+                    : `<button onclick="openPaymentModal('${b.id}','${s.id}')" class="edit-only btn-ghost text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 text-ink-70">${ic('receipt','w-3.5 h-3.5')} Payments</button>`}
             </td>
         </tr>`;
     }).join('');
@@ -728,17 +737,74 @@ function viewInstallments(){
         </div>
     </div>`;
 }
-window.recordPayment = (bid, sid) => {
-    const b = state.batches.find(x=>x.id===bid); const s = b.students.find(x=>x.id===sid);
-    const v = prompt(`Record an installment for ${s.name}\nPending: ${money(s.feePending)}\n\nAmount received now:`, "");
-    if (v === null) return;
-    const amt = num(v); if (amt <= 0) return;
-    const applied = Math.min(amt, num(s.feePending));
-    s.feePaid = num(s.feePaid) + applied;
-    s.feePending = num(s.feePending) - applied;
+/* Record / undo installment payments. Money is credited to the newest batch, so a
+   balance cleared after a new batch started counts toward that batch's revenue and
+   profit share, split across the student's own courses. */
+window.openPaymentModal = (bid, sid) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const b = state.batches.find(x => x.id === bid); if (!b) return;
+    const s = b.students.find(x => x.id === sid); if (!s) return;
+    const target = newestBatch() || b;
+    const elsewhere = target.id !== b.id;
+    const pending = num(s.feePending);
+
+    const hist = (s.installments || []).map((it, idx) => `
+        <div class="pay-row">
+            <div class="min-w-0">
+                <p class="pay-amt num">${money(it.amount)}</p>
+                <p class="pay-meta">${esc(it.date) || '—'} · ${esc(batchName(it.batchId) !== '—' ? batchName(it.batchId) : b.name)}</p>
+            </div>
+            <button onclick="revertInstallment('${bid}','${sid}',${idx})" class="pay-undo" title="Undo this payment">${ic('undo-2','w-3.5 h-3.5')} Undo</button>
+        </div>`).join('');
+
+    plainModal(`Payments · <span class="t-coral">${esc(s.name)}</span>`, `
+        <div class="pay-facts">
+            <div><span>Batch</span><b>${esc(b.name)}</b></div>
+            <div><span>Pending</span><b class="${pending>0?'t-coral':'t-muted'} num">${money(pending)}</b></div>
+            <div><span>Credited to</span><b>${esc(target.name)}</b></div>
+        </div>
+        ${elsewhere ? `<p class="pay-note">${ic('info','w-3.5 h-3.5')}<span>Counts toward <b>${esc(target.name)}</b>'s revenue and profit share — split across ${esc(s.name)}'s courses — while ${esc(b.name)} keeps the student.</span></p>` : ''}
+        ${pending > 0 ? `
+        <label class="text-xs font-semibold t-muted">Amount received now</label>
+        <div class="flex gap-2 mt-1">
+            <input id="pay-amt" type="number" class="field" placeholder="0" autocomplete="off">
+            <button type="button" onclick="document.getElementById('pay-amt').value=${pending}" class="btn-ghost px-3.5 rounded-xl text-xs font-bold whitespace-nowrap">Full</button>
+        </div>` : `<p class="text-sm t-muted">This balance is fully cleared. You can undo a payment below if it was recorded by mistake.</p>`}
+        <p id="pay-err" class="t-coral text-sm mt-2"></p>
+        ${hist ? `<div class="mt-5">
+            <p class="text-xs font-bold t-muted uppercase tracking-wide mb-2">Payments recorded</p>
+            <div class="pay-list">${hist}</div>
+        </div>` : ''}
+        <div class="flex justify-end gap-2 mt-6">
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">${pending>0?'Cancel':'Close'}</button>
+            ${pending > 0 ? `<button onclick="savePayment('${bid}','${sid}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Record payment</button>` : ''}
+        </div>`);
+};
+window.savePayment = (bid, sid) => {
+    const b = state.batches.find(x => x.id === bid); if (!b) return;
+    const s = b.students.find(x => x.id === sid); if (!s) return;
+    const err = document.getElementById('pay-err');
+    const amt = num((document.getElementById('pay-amt') || {}).value);
+    if (amt <= 0) { err.innerText = "Enter an amount greater than 0."; return; }
+    if (amt > num(s.feePending)) { err.innerText = `That is more than the pending ${money(s.feePending)}.`; return; }
+    const target = newestBatch() || b;
+    s.feePaid = num(s.feePaid) + amt;
+    s.feePending = num(s.feePending) - amt;
     s.installments = s.installments || [];
-    s.installments.push({ amount: applied, date: new Date().toISOString().slice(0,10) });
+    s.installments.push({ amount: amt, date: todayStr(), batchId: target.id });
+    save(); closeModal(); render();
+};
+window.revertInstallment = (bid, sid, idx) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const b = state.batches.find(x => x.id === bid); if (!b) return;
+    const s = b.students.find(x => x.id === sid); if (!s) return;
+    const it = (s.installments || [])[idx]; if (!it) return;
+    if (!confirm(`Undo this payment of ${money(it.amount)}?\n\nIt goes back onto ${s.name}'s pending balance and comes off ${batchName(it.batchId) !== '—' ? batchName(it.batchId) : b.name}'s revenue.`)) return;
+    s.feePaid = Math.max(0, num(s.feePaid) - num(it.amount));
+    s.feePending = num(s.feePending) + num(it.amount);
+    s.installments.splice(idx, 1);
     save(); render();
+    openPaymentModal(bid, sid);   // keep the dialog open on the updated record
 };
 
 /* batchName — used by the fund / other-payment batch pickers */

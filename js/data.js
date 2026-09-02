@@ -123,7 +123,11 @@ function normalizeStudent(s){
         // Machine timestamp of when the record was created. 0 = unknown (records made
         // before this existed); never back-filled on load, so it can't invent a date.
         createdAt: num(s.createdAt) || 0,
-        installments: Array.isArray(s.installments) ? s.installments : [],
+        // Each installment may name the batch its money belongs to. Missing = the
+        // student's own batch, so records made before this behave exactly as before.
+        installments: Array.isArray(s.installments)
+            ? s.installments.map(i => ({ amount: num(i.amount), date: i.date || '', batchId: i.batchId || '' }))
+            : [],
     };
 }
 function normalizeRefund(r){
@@ -166,6 +170,37 @@ function batchLead(b, courseId){
     if (v === '__none__') return '';
     if (typeof v === 'string' && v && TEAM.includes(v)) return v;
     return SHARE_LEAD[courseId] || '';
+}
+/* The batch a cleared installment is credited to: the most recently created one.
+   Batches are appended as they are made, so that is the last in the list. */
+function newestBatch(){ return state.batches[state.batches.length - 1] || null; }
+
+/* Part of a student's feePaid that was credited to some other batch. */
+function creditedAway(s, homeBatchId){
+    return (s.installments || []).reduce((a, i) =>
+        a + ((i.batchId && i.batchId !== homeBatchId) ? num(i.amount) : 0), 0);
+}
+/* What this student contributes to their OWN batch's revenue. */
+function ownBatchPaid(s, homeBatchId){
+    return num(s.feePaid) - creditedAway(s, homeBatchId);
+}
+/* Installments from students of other batches credited INTO this one.
+   Returns the student too, so the amount can follow their courses. */
+function creditedInto(bid){
+    const out = [];
+    (state.batches || []).forEach(b => {
+        if (b.id === bid) return;
+        (b.students || []).forEach(s => {
+            const amt = (s.installments || []).reduce((a, i) => a + (i.batchId === bid ? num(i.amount) : 0), 0);
+            if (amt > 0) out.push({ s, from: b, amount: amt });
+        });
+    });
+    return out;
+}
+/* A batch's student revenue once installments have been moved to where they belong. */
+function batchStudentsReceived(b){
+    const own = (b.students || []).reduce((a, s) => a + ownBatchPaid(s, b.id), 0);
+    return own + creditedInto(b.id).reduce((a, x) => a + x.amount, 0);
 }
 function batchRefundTotal(b){ return (b.refunds||[]).reduce((a,r)=>a+num(r.amount),0); }
 function normalizePending(p){
@@ -213,7 +248,9 @@ function addSplit(per, courses, amount, sign){
 }
 function batchSharePerCourse(batch){
     const per = {}; COURSES.forEach(c => per[c.id] = 0);
-    (batch.students||[]).forEach(s => addSplit(per, s.courses, s.feePaid, +1));
+    (batch.students||[]).forEach(s => addSplit(per, s.courses, ownBatchPaid(s, batch.id), +1));
+    // Installments cleared here by students of earlier batches, split across their courses
+    creditedInto(batch.id).forEach(x => addSplit(per, x.s.courses, x.amount, +1));
     (batch.previous||[]).forEach(e => addSplit(per, e.courses, e.received, +1));
     (batch.refunds||[]).forEach(r => addSplit(per, r.courses, r.amount, -1));
     return per;
@@ -245,7 +282,7 @@ function shareBreakdown(b){
     }
     return {
         per, owner, future, total, team,
-        currentReceived: (b.students||[]).reduce((a,s)=>a+num(s.feePaid),0),
+        currentReceived: batchStudentsReceived(b),
         prevReceived: batchPrevReceived(b),
         refunds: batchRefundTotal(b),
         other,
