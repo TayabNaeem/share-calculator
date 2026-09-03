@@ -1532,13 +1532,17 @@ function viewShare(){
                 <button onclick="downloadShareReport()" class="edit-only btn-primary px-4 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap inline-flex items-center gap-1.5">${ic('download','w-4 h-4')} Download report</button>
             </div>
         </div>
-        ${only ? '' : `<div class="grid grid-cols-2 ${d.other>0?'md:grid-cols-5':'md:grid-cols-4'} gap-3 mb-8">
-            ${miniStat('Current received', money(d.currentReceived), COLOR.gold)}
-            ${miniStat('+ Previous batch', money(d.prevReceived), COLOR.coral)}
-            ${d.other>0?miniStat('+ Other payments', money(d.other), COLOR.gold):''}
-            ${miniStat('− Refunds', money(d.refunds), COLOR.coral)}
-            ${miniStat('= Net distributable', money(d.total), COLOR.gold)}
-        </div>`}
+        ${only ? '' : (function(){
+            // A block only earns its place if it carries an amount — a row of
+            // "Rs 0" cards says nothing. Current and Net always show.
+            const cards = [ miniStat('Current received', money(d.currentReceived), COLOR.gold) ];
+            if (num(d.prevReceived) > 0) cards.push(miniStat('+ Previous batch', money(d.prevReceived), COLOR.coral));
+            if (num(d.other)        > 0) cards.push(miniStat('+ Other payments', money(d.other), COLOR.gold));
+            if (num(d.refunds)      > 0) cards.push(miniStat('− Refunds', money(d.refunds), COLOR.coral));
+            cards.push(miniStat('= Net distributable', money(d.total), COLOR.gold));
+            const cols = ['','','md:grid-cols-2','md:grid-cols-3','md:grid-cols-4','md:grid-cols-5'][cards.length] || 'md:grid-cols-5';
+            return `<div class="grid grid-cols-2 ${cols} gap-3 mb-8">${cards.join('')}</div>`;
+        })()}
         <div class="grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-8">
             ${only ? '' : `<div>
                 <div class="flex items-start justify-between gap-3 mb-2">
