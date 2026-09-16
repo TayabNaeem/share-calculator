@@ -42,6 +42,7 @@ const COURSES = [
     { id:'shopify',    name:'Shopify' },
     { id:'seo',        name:'SEO' },
     { id:'wordpress',  name:'WordPress' },
+    { id:'youtubeAutomation', name:'YouTube Automation' },
 ];
 const COURSE_NAME = Object.fromEntries(COURSES.map(c => [c.id, c.name]));
 
@@ -70,4 +71,4 @@ const TABS = [
 ];
 
 const TEAM = ["Ammad", "Tayyab Naeem", "Umar", "Khizar", "Tayyab Ali"];
-const SHARE_LEAD = { vibeCoding:null, automation:"Ammad", chatbot:"Tayyab Naeem", ghl:"Ammad", shopify:"Tayyab Naeem", seo:"Tayyab Ali", wordpress:"Umar" };
+const SHARE_LEAD = { vibeCoding:null, automation:"Ammad", chatbot:"Tayyab Naeem", ghl:"Ammad", shopify:"Tayyab Naeem", seo:"Tayyab Ali", wordpress:"Umar", youtubeAutomation:null };
