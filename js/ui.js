@@ -767,6 +767,7 @@ function viewInstallments(){
             <td class="font-semibold text-ink">${esc(s.name)}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'<span class=\'t-muted\'>—</span>'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
+            <td class="t-muted num whitespace-nowrap">${dateCell(s, b)}</td>
             <td class="text-ink-70">${esc(programLabel(s))}</td>
             <td class="text-right num t-gold">${money(s.feePaid)}${(function(){
                 const away = creditedAway(s, b.id);
@@ -795,8 +796,8 @@ function viewInstallments(){
         ${rpSummary(list.length, 'On installments', totalPaid, totalPending)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
-                <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="8" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('circle-check-big','w-8 h-8 text-[#1E293B]')}<span>No pending balances. Everyone is fully paid.</span></div></td></tr>`}</tbody>
+                <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Date</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('circle-check-big','w-8 h-8 text-[#1E293B]')}<span>No pending balances. Everyone is fully paid.</span></div></td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
