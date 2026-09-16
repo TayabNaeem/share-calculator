@@ -117,6 +117,8 @@ function normalizeStudent(s){
         sessionType: s.sessionType === '1on1' ? '1on1' : 'batch',
         mode: s.mode === 'physical' ? 'physical' : 'online',
         bundleType: s.bundleType || 'single',
+        // Which module was picked, when bundleType is 'module'. '' otherwise.
+        moduleId: (s.moduleId && MODULE[s.moduleId]) ? s.moduleId : '',
         courses: Array.isArray(s.courses) ? s.courses : [],
         feePaid: num(s.feePaid), feePending: num(s.feePending),
         date: s.date || '',
@@ -156,6 +158,7 @@ function money(n){ return 'Rs ' + Math.round(num(n)).toLocaleString(); }
 function activeBatch(){ return state.batches.find(b => b.id === activeBatchId) || state.batches[0]; }
 function esc(str){ return String(str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function programLabel(s){
+    if (s.moduleId && MODULE[s.moduleId]) return MODULE[s.moduleId].name;
     if (!s.courses || !s.courses.length) return BUNDLE[s.bundleType]?.name || '—';
     if (s.bundleType === 'single') return COURSE_NAME[s.courses[0]] || '—';
     return s.courses.map(c => COURSE_NAME[c] || c).join(' + ');

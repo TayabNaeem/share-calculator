@@ -481,3 +481,22 @@ body:not(.role-owner) .owner-only { display: none !important; }
 .toast.is-out { animation: toast-out .24s ease forwards; }
 @keyframes toast-in  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(10px); } }
+
+/* Module chooser in the student form */
+.module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.module-card {
+    display: flex; flex-direction: column; gap: 3px; text-align: left;
+    padding: 11px 13px; border-radius: 13px;
+    background: #fff; border: 1px solid var(--stroke-strong);
+    transition: border-color .16s, background .16s, box-shadow .16s;
+}
+.module-card:hover { border-color: rgba(225,75,94,0.45); background: rgba(225,75,94,0.04); }
+.module-card.is-on {
+    border-color: var(--coral); background: rgba(225,75,94,0.08);
+    box-shadow: 0 0 0 3px rgba(225,75,94,0.12);
+}
+.module-name    { font-size: .85rem; font-weight: 700; color: var(--ink); }
+.module-courses { font-size: 10.5px; color: var(--muted); line-height: 1.45; }
+.module-card.is-on .module-courses { color: var(--coral); }
+/* Course grid is read-only while a module drives it */
+.is-locked { opacity: .72; pointer-events: none; }

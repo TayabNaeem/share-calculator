@@ -50,8 +50,19 @@ const BUNDLES = [
     { id:'single', name:'Single Course', count:1, accent:'#1E293B' },
     { id:'double', name:'Double Bundle', count:2, accent:'#E14B5E' },
     { id:'triple', name:'Triple Bundle', count:3, accent:'#475569' },
+    { id:'module', name:'Module',        count:0, accent:'#334155' },   // count set by the module
 ];
 const BUNDLE = Object.fromEntries(BUNDLES.map(b => [b.id, b]));
+
+/* Modules — a named package of courses. The student's fee splits equally across
+   the module's courses, so each course's lead earns from their own share of it. */
+const MODULES = [
+    { id:'agenticAi',  name:'Agentic AI & Automation',    courses:['automation','chatbot','ghl'] },
+    { id:'fullStack',  name:'Full-Stack Web Dev',         courses:['vibeCoding','wordpress','shopify'] },
+    { id:'digitalMkt', name:'Digital Marketing & Growth', courses:['seo','ghl','chatbot'] },
+    { id:'ecommerce',  name:'E-commerce & Store Growth',  courses:['shopify','seo','wordpress'] },
+];
+const MODULE = Object.fromEntries(MODULES.map(m => [m.id, m]));
 
 /* Profit-share config */
 /* Every tab that can be granted or withheld per member (Manage users -> Access).

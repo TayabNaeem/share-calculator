@@ -496,7 +496,11 @@ window.deleteStudent = async (id) => {
 /* =====================================================================
    Custom dropdown + course checkboxes (shared by modals)
    ===================================================================== */
-function bundleLabel(id){ const x = BUNDLE[id]; return x ? `${x.name} (${x.count} course${x.count>1?'s':''})` : ''; }
+function bundleLabel(id){
+    const x = BUNDLE[id]; if (!x) return '';
+    if (!x.count) return x.name;                       // module — its courses come from the module
+    return `${x.name} (${x.count} course${x.count>1?'s':''})`;
+}
 function courseChecksHtml(selected){
     return COURSES.map(c => `
         <label class="flex items-center gap-2 px-3 py-2 rounded-lg glass cursor-pointer text-sm">
@@ -504,14 +508,15 @@ function courseChecksHtml(selected){
             <span class="text-ink-90">${c.name}</span>
         </label>`).join('');
 }
-function bundlePicker(type){
+function bundlePicker(type, allowModule){
     return `<div class="cdd mt-1" data-cdd>
         <input type="hidden" id="m-bundle" value="${type}">
         <button type="button" class="field readonly-field cdd-btn" onclick="cddToggle(this)">
             <span id="m-bundle-label" class="cdd-val">${bundleLabel(type)}</span>
             <svg class="cdd-chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <ul class="cdd-menu">${BUNDLES.map(x=>`<li class="cdd-opt ${type===x.id?'active':''}" onclick="cddSelect('${x.id}')">${bundleLabel(x.id)}</li>`).join('')}</ul>
+        <ul class="cdd-menu">${BUNDLES.filter(x => allowModule || x.id !== 'module')
+            .map(x=>`<li class="cdd-opt ${type===x.id?'active':''}" onclick="cddSelect('${x.id}')">${bundleLabel(x.id)}</li>`).join('')}</ul>
     </div>`;
 }
 window.cddToggle = (btn) => {
@@ -534,10 +539,37 @@ document.addEventListener('click', (e) => {
 window.modalBundleChange = () => {
     const type = document.getElementById('m-bundle').value;
     const max = BUNDLE[type].count;
-    const hint = document.getElementById('m-course-hint'); if (hint) hint.innerText = `— pick ${max} course${max>1?'s':''}`;
+    const hint = document.getElementById('m-course-hint');
+    const wrap = document.getElementById('m-module-wrap');   // student form only
     const chks = [...document.querySelectorAll('.course-chk')];
+    const grid = document.getElementById('m-courses');
+
+    if (type === 'module') {
+        if (wrap) wrap.classList.remove('hidden-view');
+        if (grid) grid.classList.add('is-locked');
+        chks.forEach(c => { c.disabled = true; c.onchange = null; });
+        const picked = (document.getElementById('m-module') || {}).value;
+        if (hint) hint.innerText = picked ? '— set by the module' : '— choose a module above';
+        if (picked) selectModule(picked);
+        return;
+    }
+    if (wrap) wrap.classList.add('hidden-view');
+    const mod = document.getElementById('m-module'); if (mod) mod.value = '';
+    if (grid) grid.classList.remove('is-locked');
+    chks.forEach(c => { c.disabled = false; });
+    if (hint) hint.innerText = `— pick ${max} course${max>1?'s':''}`;
     chks.filter(c=>c.checked).slice(max).forEach(c=>c.checked=false);
     chks.forEach(c => { c.onchange = () => { if (chks.filter(x=>x.checked).length > max) c.checked = false; }; });
+};
+/* Picking a module ticks exactly its courses, so the fee divides across them. */
+window.selectModule = (id) => {
+    const m = MODULE[id]; if (!m) return;
+    const hidden = document.getElementById('m-module'); if (hidden) hidden.value = id;
+    document.querySelectorAll('.module-card').forEach(el =>
+        el.classList.toggle('is-on', el.getAttribute('data-module') === id));
+    document.querySelectorAll('.course-chk').forEach(c => { c.checked = m.courses.includes(c.value); });
+    const hint = document.getElementById('m-course-hint');
+    if (hint) hint.innerText = `— ${m.courses.length} courses, fee split equally`;
 };
 window.closeModal = () => { document.getElementById('modal-root').innerHTML = ''; };
 
@@ -581,8 +613,18 @@ window.openStudentModal = (id) => {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label class="text-xs font-semibold t-muted">Name</label><input id="m-name" class="field mt-1" value="${esc(s.name)}" placeholder="Student name"></div>
             <div><label class="text-xs font-semibold t-muted">Contact</label><input id="m-contact" class="field mt-1" value="${esc(s.contact)}" placeholder="03xx xxxxxxx"></div>
-            <div><label class="text-xs font-semibold t-muted">Bundle Type</label>${bundlePicker(s.bundleType)}</div>
+            <div><label class="text-xs font-semibold t-muted">Bundle Type</label>${bundlePicker(s.bundleType, true)}</div>
             <div><label class="text-xs font-semibold t-muted">Enroll date</label><input id="m-date" class="field mt-1" value="${esc(s.date)}" placeholder="e.g. 28 June"></div>
+        </div>
+        <div id="m-module-wrap" class="mt-4 hidden-view">
+            <label class="text-xs font-semibold t-muted">Module</label>
+            <input type="hidden" id="m-module" value="${esc(s.moduleId || '')}">
+            <div class="module-grid mt-2">${MODULES.map(m => `
+                <button type="button" data-module="${m.id}" onclick="selectModule('${m.id}')"
+                        class="module-card${s.moduleId===m.id?' is-on':''}">
+                    <span class="module-name">${esc(m.name)}</span>
+                    <span class="module-courses">${m.courses.map(id => esc(COURSE_NAME[id]||id)).join(' · ')}</span>
+                </button>`).join('')}</div>
         </div>
         <div class="mt-4">
             <label class="text-xs font-semibold t-muted">Course selection <span id="m-course-hint" class="t-muted"></span></label>
@@ -620,6 +662,8 @@ window.saveStudent = (id) => {
         sessionType: document.getElementById('m-session').value === '1on1' ? '1on1' : 'batch',
         mode: document.getElementById('m-mode').value === 'physical' ? 'physical' : 'online',
         bundleType: document.getElementById('m-bundle').value,
+        moduleId: document.getElementById('m-bundle').value === 'module'
+            ? ((document.getElementById('m-module') || {}).value || '') : '',
         courses,
         // blank on a NEW record falls back to today; an existing record keeps whatever it has
         date: document.getElementById('m-date').value.trim() || (id ? '' : todayStr()),
@@ -627,6 +671,7 @@ window.saveStudent = (id) => {
         feePending: num(document.getElementById('m-pending').value),
     };
     if (!data.name) return alert("Please enter a name.");
+    if (data.bundleType === 'module' && !data.moduleId) { toast("Choose a module first.", 'error'); return; }
     if (id) Object.assign(b.students.find(x=>x.id===id), data);
     else b.students.push(normalizeStudent({ ...data, installments: [], createdAt: Date.now() }));
     save(); closeModal(); render();
