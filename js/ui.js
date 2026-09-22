@@ -345,6 +345,7 @@ function render(){
     applyBranding();
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
     syncNavGroups();
+    updateReminderBadge();
     renderKpis();
     renderBatchBar();
     const c = document.getElementById('tab-content');
@@ -819,6 +820,69 @@ window.setFollowUp = (bid, sid, value) => {
     toast(f ? `${esc(s.name)} marked “${f.name}”` : `Status cleared for ${esc(s.name)}`);
 };
 
+/* ---------- Three-week payment reminder ----------
+   Due when a student still owes money, it has been REMINDER_DAYS since they
+   enrolled, and nobody has set a follow-up status yet. Setting any status
+   (e.g. "Reminder sent") clears it. Uses the real enrol date only — the typed
+   date or the captured creation time — never the batch-based estimate, which
+   would fire reminders for the wrong day. */
+const REMINDER_DAYS = 21;
+const DAY_MS = 86400000;
+function enrolTs(s){ return parseDateVal(recordDate(s)); }
+function daysSinceEnrol(s){
+    const t = enrolTs(s);
+    return t === null ? null : Math.floor((Date.now() - t) / DAY_MS);
+}
+function reminderDue(s){
+    if (num(s.feePending) <= 0 || s.followUp) return false;
+    const d = daysSinceEnrol(s);
+    return d !== null && d >= REMINDER_DAYS;
+}
+function dueReminders(){
+    const out = [];
+    (state.batches || []).forEach(b => (b.students || []).forEach(s => {
+        if (reminderDue(s)) out.push({ b, s, days: daysSinceEnrol(s) });
+    }));
+    return out.sort((x, y) => y.days - x.days);
+}
+/* Count badge on the Installments nav item (and on the Students group while folded). */
+function updateReminderBadge(){
+    const n = state ? dueReminders().length : 0;
+    const put = (el) => {
+        if (!el) return;
+        let badge = el.querySelector('.nav-badge');
+        if (!n) { if (badge) badge.remove(); return; }
+        if (!badge) { badge = document.createElement('span'); badge.className = 'nav-badge'; el.appendChild(badge); }
+        badge.textContent = n;
+        badge.title = n + ' student' + (n === 1 ? '' : 's') + ' due a payment reminder';
+    };
+    put(document.querySelector('.tab-btn[data-tab="installments"]'));
+    put(document.querySelector('#nav-grp-students .nav-parent'));
+}
+function reminderPanel(){
+    const due = dueReminders();
+    if (!due.length) return '';
+    const rows = due.map(({ b, s, days }) => `
+        <div class="due-row">
+            <div class="min-w-0">
+                <p class="due-name">${esc(s.name)}</p>
+                <p class="due-meta">${esc(b.name)} · enrolled ${days} days ago · ${esc(s.contact || 'no contact')}</p>
+            </div>
+            <span class="due-amt num">${money(s.feePending)}</span>
+            <button onclick="setFollowUp('${b.id}','${s.id}','reminder')" class="edit-only due-btn">${ic('bell-ring','w-3.5 h-3.5')} Mark reminder sent</button>
+        </div>`).join('');
+    return `<div class="due-panel">
+        <div class="due-head">
+            <span class="due-icon">${ic('bell-ring','w-4 h-4')}</span>
+            <div>
+                <p class="due-title">${due.length} student${due.length === 1 ? '' : 's'} due a payment reminder</p>
+                <p class="due-sub">${REMINDER_DAYS / 7} weeks since enrolment and still owing. Message them, then mark it sent.</p>
+            </div>
+        </div>
+        <div class="due-list">${rows}</div>
+    </div>`;
+}
+
 function viewInstallments(){
     const list = [];
     state.batches.forEach(b => b.students.forEach(s => {
@@ -834,7 +898,7 @@ function viewInstallments(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
         return `
         <tr>
-            <td class="font-semibold text-ink">${esc(s.name)}</td>
+            <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)}${reminderDue(s) ? ` <span class="due-chip" title="${daysSinceEnrol(s)} days since enrolment">${ic('bell-ring','w-3 h-3')} Due</span>` : ''}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'<span class=\'t-muted\'>—</span>'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
             <td class="t-muted num whitespace-nowrap">${dateCell(s, b)}</td>
@@ -864,6 +928,7 @@ function viewInstallments(){
             <h2 class="text-xl font-bold text-ink">Students on Installments</h2>
             <p class="t-muted text-sm">${list.length} students with a pending balance (all batches)</p>
         </div>
+        ${reminderPanel()}
         ${rpSummary(list.length, 'On installments', totalPaid, totalPending)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
