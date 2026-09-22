@@ -121,6 +121,9 @@ function normalizeStudent(s){
         moduleId: (s.moduleId && MODULE[s.moduleId]) ? s.moduleId : '',
         courses: Array.isArray(s.courses) ? s.courses : [],
         feePaid: num(s.feePaid), feePending: num(s.feePending),
+        // Installment follow-up label — a note for chasing payment, never changes money.
+        followUp: ['reminder','paid','left'].includes(s.followUp) ? s.followUp : '',
+        followUpAt: s.followUpAt || '',
         date: s.date || '',
         // Machine timestamp of when the record was created. 0 = unknown (records made
         // before this existed); never back-filled on load, so it can't invent a date.

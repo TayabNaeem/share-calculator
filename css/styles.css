@@ -500,3 +500,21 @@ body:not(.role-owner) .owner-only { display: none !important; }
 .module-card.is-on .module-courses { color: var(--coral); }
 /* Course grid is read-only while a module drives it */
 .is-locked { opacity: .72; pointer-events: none; }
+
+/* Installment follow-up tags */
+body:not(.role-viewer) .viewer-only { display: none !important; }
+.fu-select, .fu-tag {
+    font-family: inherit; font-size: 11.5px; font-weight: 700; line-height: 1.4;
+    border-radius: 999px; padding: 4px 11px; white-space: nowrap;
+    color: var(--muted); background-color: rgba(0,22,50,0.05); border: 1px solid var(--stroke-strong);
+}
+.fu-select {
+    -webkit-appearance: none; appearance: none; cursor: pointer; padding-right: 24px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%235b6577' stroke-width='2' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+}
+.fu-select:focus { outline: none; box-shadow: 0 0 0 3px rgba(225,75,94,0.15); }
+.fu-reminder { color: #B45309 !important; background-color: #FEF3C7 !important; border-color: #FCD34D !important; }
+.fu-paid     { color: #15803D !important; background-color: #DCFCE7 !important; border-color: #86EFAC !important; }
+.fu-left     { color: #C23A4D !important; background-color: #FDE8EB !important; border-color: #F5A3AE !important; }
+.fu-when { font-size: 10px; color: var(--muted); margin: 3px 0 0 4px; }

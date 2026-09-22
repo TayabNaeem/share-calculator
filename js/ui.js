@@ -794,6 +794,31 @@ function viewPhysical(){
 /* =====================================================================
    TAB: INSTALLMENTS
    ===================================================================== */
+/* Follow-up tags for chasing installments. Labels only — they never touch balances. */
+const FOLLOW_UPS = [
+    { id:'reminder', name:'Reminder sent',   icon:'bell-ring' },
+    { id:'paid',     name:'Paid',            icon:'check-circle-2' },
+    { id:'left',     name:'Left / no reply', icon:'user-x' },
+];
+function followUpCell(b, s){
+    const cur = FOLLOW_UPS.find(f => f.id === s.followUp);
+    const opts = ['<option value="">Set status</option>']
+        .concat(FOLLOW_UPS.map(f => `<option value="${f.id}"${s.followUp===f.id?' selected':''}>${f.name}</option>`)).join('');
+    const when = cur && s.followUpAt ? `<div class="fu-when">${esc(s.followUpAt)}</div>` : '';
+    return `<select class="edit-only fu-select${cur ? ' fu-' + cur.id : ''}" onchange="setFollowUp('${b.id}','${s.id}',this.value)" title="Follow-up status">${opts}</select>
+        <span class="viewer-only fu-tag${cur ? ' fu-' + cur.id : ''}">${cur ? cur.name : '—'}</span>${when}`;
+}
+window.setFollowUp = (bid, sid, value) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const b = state.batches.find(x => x.id === bid); if (!b) return;
+    const s = b.students.find(x => x.id === sid); if (!s) return;
+    s.followUp = FOLLOW_UPS.some(f => f.id === value) ? value : '';
+    s.followUpAt = s.followUp ? todayStr() : '';
+    save(); render();
+    const f = FOLLOW_UPS.find(x => x.id === s.followUp);
+    toast(f ? `${esc(s.name)} marked “${f.name}”` : `Status cleared for ${esc(s.name)}`);
+};
+
 function viewInstallments(){
     const list = [];
     state.batches.forEach(b => b.students.forEach(s => {
@@ -825,6 +850,7 @@ function viewInstallments(){
                     <span class="text-xs t-muted num">${pct}%</span>
                 </div>
             </td>
+            <td class="whitespace-nowrap">${followUpCell(b, s)}</td>
             <td class="text-right">
                 ${num(s.feePending) > 0
                     ? `<button onclick="openPaymentModal('${b.id}','${s.id}')" class="edit-only btn-primary text-xs font-bold px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">${ic('plus','w-3.5 h-3.5')} Record</button>`
@@ -841,8 +867,8 @@ function viewInstallments(){
         ${rpSummary(list.length, 'On installments', totalPaid, totalPending)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
-                <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Date</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th></th></tr></thead>
-                <tbody>${rows || `<tr><td colspan="9" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('circle-check-big','w-8 h-8 text-[#1E293B]')}<span>No pending balances. Everyone is fully paid.</span></div></td></tr>`}</tbody>
+                <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Date</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th>Status</th><th></th></tr></thead>
+                <tbody>${rows || `<tr><td colspan="10" class="text-center t-muted py-12"><div class="flex flex-col items-center gap-2">${ic('circle-check-big','w-8 h-8 text-[#1E293B]')}<span>No pending balances. Everyone is fully paid.</span></div></td></tr>`}</tbody>
             </table>
         </div>
     </div>`;
