@@ -282,7 +282,7 @@ window.__applyTabPerms = () => {
 window.setTab = (t) => { if (!tabAllowed(t)) return; activeTab = t; render(); };
 window.setBatch = (id) => { activeBatchId = id; save(); render(); };
 function nextBatchNum(){ return Math.max(0, ...state.batches.map(b => { const m=(b.name||'').match(/\d+/); return m?+m[0]:0; })) + 1; }
-function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' }; }
+function makeBatch(name){ return { id:'b'+Date.now()+Math.floor(Math.random()*1000), name, students:[], previous:[], refunds:[], pending:[], counselling:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' }; }
 window.addBatch = () => {
     const b = makeBatch(`Batch ${nextBatchNum()}`);
     state.batches.push(b); activeBatchId = b.id; save(); render();
@@ -1676,9 +1676,10 @@ function viewShare(){
             const cards = [ miniStat('Current received', money(d.currentReceived), COLOR.gold) ];
             if (num(d.prevReceived) > 0) cards.push(miniStat('+ Previous batch', money(d.prevReceived), COLOR.coral));
             if (num(d.other)        > 0) cards.push(miniStat('+ Other payments', money(d.other), COLOR.gold));
+            if (num(d.counselling)  > 0) cards.push(miniStat('+ Counselling', money(d.counselling), COLOR.gold));
             if (num(d.refunds)      > 0) cards.push(miniStat('− Refunds', money(d.refunds), COLOR.coral));
             cards.push(miniStat('= Net distributable', money(d.total), COLOR.gold));
-            const cols = ['','','md:grid-cols-2','md:grid-cols-3','md:grid-cols-4','md:grid-cols-5'][cards.length] || 'md:grid-cols-5';
+            const cols = ['','','md:grid-cols-2','md:grid-cols-3','md:grid-cols-4','md:grid-cols-5','md:grid-cols-3'][cards.length] || 'md:grid-cols-3';
             return `<div class="grid grid-cols-2 ${cols} gap-3 mb-8">${cards.join('')}</div>`;
         })()}
         <div class="grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-8">
@@ -1702,13 +1703,100 @@ function viewShare(){
                     ${only ? '' : `
                     <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Owner (40%)</span><div class="text-right leading-tight"><span id="owner-val" class="font-bold t-gold num">Rs 0</span>${remLabel}${settledSub(d.owner)}</div></div>
                     <div class="flex justify-between items-center border-b line pb-3"><span class="t-muted">Future Fund (36%)</span><div class="text-right leading-tight"><span id="future-val" class="font-bold t-coral num">Rs 0</span>${remLabel}${settledSub(d.future)}</div></div>`}
-                    <p class="text-xs t-muted pt-2 pb-1">${only ? 'Your share' : 'Team pool (24%)'}</p>
+                    <p class="text-xs t-muted pt-2 pb-1">${only ? 'Your share' : (num(d.counselling) > 0 ? 'Team pool (24% + counselling)' : 'Team pool (24%)')}</p>
                     ${teamRows}
                 </div>
             </div>
         </div>
+        ${only ? '' : counsellingPanel(b)}
     </div>`;
 }
+/* ---------- Counselling (team-only income) ---------- */
+function counsellingPanel(b){
+    const list = b.counselling || [];
+    const total = batchCounsellingTotal(b);
+    const n = TEAM.length;
+    const rows = list.map(c => `
+        <tr>
+            <td class="t-muted num whitespace-nowrap">${esc(c.date) || '—'}</td>
+            <td class="text-ink-90">${esc(c.note) || '<span class="t-muted">—</span>'}</td>
+            <td class="text-right num font-semibold">${money(c.amount)}</td>
+            <td class="text-right num t-muted">${money(num(c.amount) / n)}</td>
+            <td class="text-right whitespace-nowrap">
+                <button onclick="openCounselling('${c.id}')" class="edit-only icon-btn" style="width:30px;height:30px" title="Edit">${ic('pencil','w-4 h-4')}</button>
+                <button onclick="deleteCounselling('${c.id}')" class="edit-only icon-btn hover:text-[#E14B5E]" style="width:30px;height:30px" title="Delete">${ic('trash-2','w-4 h-4')}</button>
+            </td>
+        </tr>`).join('');
+    return `<div class="mt-8 pt-6 border-t line">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+                <h3 class="text-base font-bold text-ink flex items-center gap-2">${ic('messages-square','w-4 h-4 t-coral')} Counselling</h3>
+                <p class="text-xs t-muted mt-0.5">Split equally among the ${n} team members — no owner or future-fund cut.</p>
+            </div>
+            <button onclick="openCounselling()" class="edit-only btn-ghost px-3.5 py-2 rounded-xl text-sm font-semibold text-ink-70 inline-flex items-center gap-1.5">${ic('plus','w-4 h-4')} Add counselling</button>
+        </div>
+        ${list.length ? `
+        <div class="overflow-x-auto">
+            <table class="tbl w-full text-sm">
+                <thead><tr><th>Date</th><th>Note</th><th class="text-right">Amount</th><th class="text-right">Each member</th><th></th></tr></thead>
+                <tbody>${rows}</tbody>
+                <tfoot><tr class="font-bold text-ink"><td colspan="2">Total</td><td class="text-right num">${money(total)}</td><td class="text-right num">${money(total / n)}</td><td></td></tr></tfoot>
+            </table>
+        </div>` : `<p class="text-sm t-muted py-3">No counselling recorded for ${esc(b.name)} yet.</p>`}
+    </div>`;
+}
+window.openCounselling = (id) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const b = activeBatch();
+    const editing = id ? (b.counselling || []).find(x => x.id === id) : null;
+    const c = editing || { amount:'', date: todayStr(), note:'' };
+    plainModal(`${editing ? 'Edit' : 'Add'} counselling · <span class="t-coral">${esc(b.name)}</span>`, `
+        <p class="pay-note">${ic('info','w-3.5 h-3.5')}<span>Divided equally among all ${TEAM.length} team members. The owner's 40% and the future fund's 36% are <b>not</b> taken from it.</span></p>
+        <div class="space-y-3">
+            <div><label class="text-xs font-semibold t-gold">Amount</label>
+                <input id="cn-amount" type="number" class="field mt-1" value="${c.amount}" placeholder="0" oninput="counsellingEach()"></div>
+            <p id="cn-each" class="text-xs t-muted"></p>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-semibold t-muted">Date</label><input id="cn-date" class="field mt-1" value="${esc(c.date)}" placeholder="e.g. 22 Sep 2026"></div>
+                <div><label class="text-xs font-semibold t-muted">Note (optional)</label><input id="cn-note" class="field mt-1" value="${esc(c.note)}" placeholder="e.g. Career session"></div>
+            </div>
+            <p id="cn-err" class="t-coral text-sm"></p>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+            <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">Cancel</button>
+            <button onclick="saveCounselling('${editing ? editing.id : ''}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">${editing ? 'Save' : 'Add'}</button>
+        </div>`);
+    counsellingEach();
+};
+window.counsellingEach = () => {
+    const el = document.getElementById('cn-each'); if (!el) return;
+    const amt = num((document.getElementById('cn-amount') || {}).value);
+    el.innerText = amt > 0 ? `Each of the ${TEAM.length} members gets ${money(amt / TEAM.length)}.` : '';
+};
+window.saveCounselling = (id) => {
+    const b = activeBatch();
+    const amount = num(document.getElementById('cn-amount').value);
+    if (amount <= 0) { document.getElementById('cn-err').innerText = "Enter an amount greater than 0."; return; }
+    const data = {
+        amount,
+        date: document.getElementById('cn-date').value.trim() || (id ? '' : todayStr()),
+        note: document.getElementById('cn-note').value.trim(),
+    };
+    b.counselling = b.counselling || [];
+    if (id) Object.assign(b.counselling.find(x => x.id === id), data);
+    else b.counselling.push(normalizeCounselling({ ...data, createdAt: Date.now() }));
+    save(); closeModal(); render();
+    toast(`${money(amount)} counselling ${id ? 'updated' : 'added'} · ${money(amount / TEAM.length)} each`);
+};
+window.deleteCounselling = async (id) => {
+    const b = activeBatch();
+    const c = (b.counselling || []).find(x => x.id === id); if (!c) return;
+    if (!await appConfirm({ danger:true, icon:'trash-2', title:`Delete ${money(c.amount)} counselling?`,
+        message:'It comes off every team member\'s share for this batch.', confirmLabel:'Delete' })) return;
+    b.counselling = b.counselling.filter(x => x.id !== id);
+    save(); render();
+    toast('Counselling entry deleted');
+};
 /* Per-batch lead picker. Shows who earns this course's 12% in THIS batch, and
    marks whether that is the company default or an override for this batch. */
 /* One quiet line under the course name — who earns its 12% in this batch. */
@@ -1803,7 +1891,8 @@ window.downloadShareReport = () => {
 <table><tbody>
  <tr><td>Current received</td><td class="r">${money(d.currentReceived)}</td></tr>
  <tr><td>+ Previous batch received</td><td class="r">${money(d.prevReceived)}</td></tr>
- <tr><td>− Refunds</td><td class="r">− ${money(d.refunds)}</td></tr>
+ <tr><td>− Refunds</td><td class="r">− ${money(d.refunds)}</td></tr>${num(d.counselling) > 0 ? `
+ <tr><td>+ Counselling (team only)</td><td class="r">${money(d.counselling)}</td></tr>` : ''}
  <tr class="total"><td>Net distributable</td><td class="r">${money(d.total)}</td></tr></tbody></table>
 <h2>Revenue by Service (net)</h2>
 <table><thead><tr><th>Service</th><th class="r">Net revenue</th></tr></thead><tbody>${revRows}
@@ -1812,7 +1901,7 @@ window.downloadShareReport = () => {
 <table><tbody>
  <tr><td>Owner (40%)</td><td class="r">${money(d.owner)}</td></tr>
  <tr><td>Future Fund (36%)</td><td class="r">${money(d.future)}</td></tr>
- <tr><td>Team Pool (24%)</td><td class="r">${money(teamPool)}</td></tr>
+ <tr><td>${num(d.counselling) > 0 ? 'Team Pool (24% + counselling)' : 'Team Pool (24%)'}</td><td class="r">${money(teamPool)}</td></tr>
  <tr class="total"><td>Grand total</td><td class="r">${money(d.owner+d.future+teamPool)}</td></tr></tbody></table>
 <h2>Team Pool Breakdown</h2>
 <table><thead><tr><th>Member</th><th class="r">Share</th></tr></thead><tbody>${teamRows}

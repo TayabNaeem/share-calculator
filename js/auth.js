@@ -165,6 +165,7 @@ function collectRecords(state){
         (b.refunds ||[]).forEach(x => out.push({ id:x.id, type:'refund',   ...meta, data:x }));
         (b.previous||[]).forEach(x => out.push({ id:x.id, type:'previous', ...meta, data:x }));
         (b.pending ||[]).forEach(x => out.push({ id:x.id, type:'pending',  ...meta, data:x }));
+        (b.counselling||[]).forEach(x => out.push({ id:x.id, type:'counselling', ...meta, data:x }));
     });
     ((state.fund||{}).additions||[]).forEach(x => out.push({ id:x.id, type:'fundAddition', batchId:x.batchId||'', batchName:'', data:x }));
     ((state.fund||{}).expenses ||[]).forEach(x => out.push({ id:x.id, type:'fundExpense',  batchId:'', batchName:'', data:x }));

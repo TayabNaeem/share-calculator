@@ -113,14 +113,14 @@ function download(state, name){
 /* Reassemble a full dataset from the individual per-entry documents. */
 function rebuildFromRecords(recs){
     const byBatch = {};
-    const bucket = { student:'students', refund:'refunds', previous:'previous', pending:'pending' };
+    const bucket = { student:'students', refund:'refunds', previous:'previous', pending:'pending', counselling:'counselling' };
     const fund = { additions:[], expenses:[] };
     const otherPayments = [];
     recs.forEach(r => {
         if (bucket[r.type]) {
             const id = r.batchId || 'unknown';
             const b = byBatch[id] || (byBatch[id] = { id, name: r.batchName || 'Recovered batch',
-                students:[], previous:[], refunds:[], pending:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' });
+                students:[], previous:[], refunds:[], pending:[], counselling:[], share:{}, shareSettled:false, settledPct:0, settledAt:'' });
             b[bucket[r.type]].push(r.data);
         }
         else if (r.type === 'fundAddition') fund.additions.push(r.data);

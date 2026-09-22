@@ -66,6 +66,7 @@ window.__loadState = (incoming) => {
                 previous, refunds, pending,
                 share: b.share || {},
                 leads: (b.leads && typeof b.leads === 'object') ? b.leads : {},
+                counselling: Array.isArray(b.counselling) ? b.counselling.map(normalizeCounselling) : [],
                 shareSettled: !!b.shareSettled,
                 settledPct: (b.settledPct != null ? num(b.settledPct) : (b.shareSettled ? 100 : 0)),
                 settledAt: b.settledAt || '',
@@ -103,6 +104,15 @@ function normalizeOther(o){
         createdAt: num(o.createdAt) || 0,
     };
 }
+/* Counselling income for a batch — goes to the team only (see shareBreakdown). */
+function normalizeCounselling(c){
+    return {
+        id: c.id || ('c'+Math.random().toString(36).slice(2)),
+        amount: num(c.amount), date: c.date || '', note: c.note || '',
+        createdAt: num(c.createdAt) || 0,
+    };
+}
+function batchCounsellingTotal(b){ return ((b && b.counselling) || []).reduce((a,c)=>a+num(c.amount),0); }
 function otherForBatch(bid){ return (state.otherPayments||[]).filter(o=>o.batchId===bid).reduce((a,o)=>a+num(o.amount),0); }
 function fundAutoTotal(){ return state.batches.reduce((a,b)=>a+shareBreakdown(b).future,0); }
 function fundAdditionsTotal(){ return (state.fund.additions||[]).reduce((a,e)=>a+num(e.amount),0); }
@@ -286,8 +296,14 @@ function shareBreakdown(b){
         const split = (other*0.24)/TEAM.length;
         TEAM.forEach(n => team[n]+=split);
     }
+    // Counselling: split equally among the team — no owner or future-fund cut.
+    const counselling = batchCounsellingTotal(b);
+    if (counselling) {
+        total += counselling;
+        TEAM.forEach(n => team[n] += counselling / TEAM.length);
+    }
     return {
-        per, owner, future, total, team,
+        per, owner, future, total, team, counselling,
         currentReceived: batchStudentsReceived(b),
         prevReceived: batchPrevReceived(b),
         refunds: batchRefundTotal(b),
