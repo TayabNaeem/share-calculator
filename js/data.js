@@ -112,6 +112,9 @@ function normalizeCounselling(c){
         createdAt: num(c.createdAt) || 0,
     };
 }
+/* Counselling is owner-only: for anyone else it is left out of every figure,
+   so it cannot be read back out of the team shares or totals either. */
+function counsellingVisible(){ return !!(window.__getRole && window.__getRole() === 'owner'); }
 function batchCounsellingTotal(b){ return ((b && b.counselling) || []).reduce((a,c)=>a+num(c.amount),0); }
 function otherForBatch(bid){ return (state.otherPayments||[]).filter(o=>o.batchId===bid).reduce((a,o)=>a+num(o.amount),0); }
 function fundAutoTotal(){ return state.batches.reduce((a,b)=>a+shareBreakdown(b).future,0); }
@@ -297,7 +300,7 @@ function shareBreakdown(b){
         TEAM.forEach(n => team[n]+=split);
     }
     // Counselling: split equally among the team — no owner or future-fund cut.
-    const counselling = batchCounsellingTotal(b);
+    const counselling = counsellingVisible() ? batchCounsellingTotal(b) : 0;
     if (counselling) {
         total += counselling;
         TEAM.forEach(n => team[n] += counselling / TEAM.length);

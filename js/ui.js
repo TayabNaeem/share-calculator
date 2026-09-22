@@ -1708,7 +1708,7 @@ function viewShare(){
                 </div>
             </div>
         </div>
-        ${only ? '' : counsellingPanel(b)}
+        ${(only || !counsellingVisible()) ? '' : counsellingPanel(b)}
     </div>`;
 }
 /* ---------- Counselling (team-only income) ---------- */
@@ -1746,7 +1746,7 @@ function counsellingPanel(b){
     </div>`;
 }
 window.openCounselling = (id) => {
-    if (window.__getRole && window.__getRole() === 'viewer') return;
+    if (!counsellingVisible()) return;   // owner only
     const b = activeBatch();
     const editing = id ? (b.counselling || []).find(x => x.id === id) : null;
     const c = editing || { amount:'', date: todayStr(), note:'' };
@@ -1774,6 +1774,7 @@ window.counsellingEach = () => {
     el.innerText = amt > 0 ? `Each of the ${TEAM.length} members gets ${money(amt / TEAM.length)}.` : '';
 };
 window.saveCounselling = (id) => {
+    if (!counsellingVisible()) return;
     const b = activeBatch();
     const amount = num(document.getElementById('cn-amount').value);
     if (amount <= 0) { document.getElementById('cn-err').innerText = "Enter an amount greater than 0."; return; }
@@ -1789,6 +1790,7 @@ window.saveCounselling = (id) => {
     toast(`${money(amount)} counselling ${id ? 'updated' : 'added'} · ${money(amount / TEAM.length)} each`);
 };
 window.deleteCounselling = async (id) => {
+    if (!counsellingVisible()) return;
     const b = activeBatch();
     const c = (b.counselling || []).find(x => x.id === id); if (!c) return;
     if (!await appConfirm({ danger:true, icon:'trash-2', title:`Delete ${money(c.amount)} counselling?`,
