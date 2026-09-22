@@ -821,12 +821,13 @@ window.setFollowUp = (bid, sid, value) => {
 };
 
 /* ---------- Three-week payment reminder ----------
-   Due when a student still owes money, it has been REMINDER_DAYS since they
+   Due from the start of the 3rd week after enrolment when a student still owes money
+   (REMINDER_DAYS since they
    enrolled, and nobody has set a follow-up status yet. Setting any status
    (e.g. "Reminder sent") clears it. Uses the real enrol date only — the typed
    date or the captured creation time — never the batch-based estimate, which
    would fire reminders for the wrong day. */
-const REMINDER_DAYS = 21;
+const REMINDER_DAYS = 14;   // day 14 = first day of the 3rd week (week 1 = days 0-6)
 const DAY_MS = 86400000;
 function enrolTs(s){ return parseDateVal(recordDate(s)); }
 function daysSinceEnrol(s){
@@ -866,7 +867,7 @@ function reminderPanel(){
         <div class="due-row">
             <div class="min-w-0">
                 <p class="due-name">${esc(s.name)}</p>
-                <p class="due-meta">${esc(b.name)} · enrolled ${days} days ago · ${esc(s.contact || 'no contact')}</p>
+                <p class="due-meta">${esc(b.name)} · week ${Math.floor(days / 7) + 1} · enrolled ${days} days ago · ${esc(s.contact || 'no contact')}</p>
             </div>
             <span class="due-amt num">${money(s.feePending)}</span>
             <button onclick="setFollowUp('${b.id}','${s.id}','reminder')" class="edit-only due-btn">${ic('bell-ring','w-3.5 h-3.5')} Mark reminder sent</button>
@@ -876,7 +877,7 @@ function reminderPanel(){
             <span class="due-icon">${ic('bell-ring','w-4 h-4')}</span>
             <div>
                 <p class="due-title">${due.length} student${due.length === 1 ? '' : 's'} due a payment reminder</p>
-                <p class="due-sub">${REMINDER_DAYS / 7} weeks since enrolment and still owing. Message them, then mark it sent.</p>
+                <p class="due-sub">In their 3rd week or later since enrolment and still owing. Message them, then mark it sent.</p>
             </div>
         </div>
         <div class="due-list">${rows}</div>
@@ -898,7 +899,7 @@ function viewInstallments(){
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
         return `
         <tr>
-            <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)}${reminderDue(s) ? ` <span class="due-chip" title="${daysSinceEnrol(s)} days since enrolment">${ic('bell-ring','w-3 h-3')} Due</span>` : ''}</td>
+            <td class="font-semibold text-ink whitespace-nowrap">${esc(s.name)}${reminderDue(s) ? ` <span class="due-chip" title="Week ${Math.floor(daysSinceEnrol(s) / 7) + 1} · ${daysSinceEnrol(s)} days since enrolment">${ic('bell-ring','w-3 h-3')} Due</span>` : ''}</td>
             <td class="text-ink-70 num">${esc(s.contact)||'<span class=\'t-muted\'>—</span>'}</td>
             <td><span class="badge glass text-ink-70">${esc(b.name)}</span></td>
             <td class="t-muted num whitespace-nowrap">${dateCell(s, b)}</td>
