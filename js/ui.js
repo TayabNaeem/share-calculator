@@ -138,23 +138,28 @@ function sortByDate(arr, getDate){
    opts lets a tab skip a dimension it has already fixed: the 1-on-1 tab ignores
    the session filter and the Physical tab ignores the mode filter, so a filter
    set elsewhere cannot empty those lists for no visible reason. */
-let courseFilter = '', sessionFilter = '', modeFilter = '';
+let courseFilter = '', sessionFilter = '', modeFilter = '', statusFilter = '';
 window.setCourseFilter  = (v) => { courseFilter  = v || ''; render(); };
 window.setSessionFilter = (v) => { sessionFilter = v || ''; render(); };
 window.setModeFilter    = (v) => { modeFilter    = v || ''; render(); };
+window.setStatusFilter  = (v) => { statusFilter  = v || ''; render(); };
 window.clearListFilters = () => {
-    courseFilter = sessionFilter = modeFilter = '';
+    courseFilter = sessionFilter = modeFilter = statusFilter = '';
     enrollSort = 'none';
     render();
 };
+/* Follow-up status of a student for filtering — 'none' when untagged. */
+function statusOf(s){ return s.followUp || 'none'; }
+const STATUS_FILTERS = [['','All statuses'],['none','No status'],['reminder','Reminder sent'],['paid','Paid'],['left','Left / no reply']];
 /* Is anything narrowing or reordering this tab's list right now? */
 function anyListFilterActive(opts){
-    return activeFilterLabels(opts).length > 0 || enrollSort !== 'none';
+    return activeFilterLabels(opts).length > 0 || (opts && opts.sort !== false && enrollSort !== 'none');
 }
 
 function studentMatches(s, opts){
     opts = opts || {};
-    if (courseFilter && !(Array.isArray(s.courses) && s.courses.includes(courseFilter))) return false;
+    if (opts.course !== false && courseFilter && !(Array.isArray(s.courses) && s.courses.includes(courseFilter))) return false;
+    if (opts.status === true && statusFilter && statusOf(s) !== statusFilter) return false;
     if (opts.session !== false && sessionFilter &&
         (s.sessionType === '1on1' ? '1on1' : 'batch') !== sessionFilter) return false;
     if (opts.mode !== false && modeFilter &&
@@ -167,7 +172,8 @@ function filterStudents(list, get, opts){
 function activeFilterLabels(opts){
     opts = opts || {};
     const out = [];
-    if (courseFilter) out.push(COURSE_NAME[courseFilter] || courseFilter);
+    if (opts.course !== false && courseFilter) out.push(COURSE_NAME[courseFilter] || courseFilter);
+    if (opts.status === true && statusFilter) out.push((STATUS_FILTERS.find(x => x[0] === statusFilter) || ['',''])[1]);
     if (opts.session !== false && sessionFilter) out.push(sessionFilter === '1on1' ? '1-on-1' : 'Normal batch');
     if (opts.mode !== false && modeFilter) out.push(modeFilter === 'physical' ? 'Physical' : 'Online');
     return out;
@@ -187,10 +193,11 @@ function activeFilterCount(opts){ return activeFilterLabels(opts).length; }
 function filterChips(opts){
     opts = opts || {};
     const chips = [];
-    if (courseFilter) chips.push(['Course', COURSE_NAME[courseFilter] || courseFilter, "setCourseFilter('')"]);
+    if (opts.course !== false && courseFilter) chips.push(['Course', COURSE_NAME[courseFilter] || courseFilter, "setCourseFilter('')"]);
+    if (opts.status === true && statusFilter) chips.push(['Status', (STATUS_FILTERS.find(x => x[0] === statusFilter) || ['',''])[1], "setStatusFilter('')"]);
     if (opts.session !== false && sessionFilter) chips.push(['Type', sessionFilter === '1on1' ? '1-on-1' : 'Normal batch', "setSessionFilter('')"]);
     if (opts.mode !== false && modeFilter) chips.push(['Mode', modeFilter === 'physical' ? 'Physical' : 'Online', "setModeFilter('')"]);
-    if (enrollSort !== 'none') chips.push(['Date', enrollSort === 'asc' ? 'Oldest first' : 'Newest first', "setEnrollSort('none')"]);
+    if (opts.sort !== false && enrollSort !== 'none') chips.push(['Date', enrollSort === 'asc' ? 'Oldest first' : 'Newest first', "setEnrollSort('none')"]);
     if (!chips.length) return '';
     return chips.map(([k, v, fn]) => `<span class="fchip"><span class="fchip-k">${k}</span>${esc(v)}
         <button onclick="${fn}" title="Remove">${ic('x','w-3 h-3')}</button></span>`).join('')
@@ -211,13 +218,14 @@ function filterPanel(opts){
             <span>Filters</span>
             ${anyListFilterActive(opts) ? `<button onclick="clearListFilters()" class="fp-reset">Reset</button>` : ''}
         </div>
-        ${sel('Course', courseFilter, 'setCourseFilter', [['','All courses']].concat(COURSES.map(c => [c.id, c.name])))}
+        ${opts.course === false ? '' : sel('Course', courseFilter, 'setCourseFilter', [['','All courses']].concat(COURSES.map(c => [c.id, c.name])))}
+        ${opts.status === true ? sel('Status', statusFilter, 'setStatusFilter', STATUS_FILTERS) : ''}
         ${opts.session !== false ? sel('Type', sessionFilter, 'setSessionFilter', [['','All types'],['batch','Normal batch'],['1on1','1-on-1']]) : ''}
         ${opts.mode !== false ? sel('Mode', modeFilter, 'setModeFilter', [['','All modes'],['online','Online'],['physical','Physical']]) : ''}
-        <div class="fp-row">
+        ${opts.sort === false ? '' : `<div class="fp-row">
             <label class="fp-label">Sort by date</label>
             <div class="fp-seg-group">${seg('none','Default')}${seg('asc','Oldest')}${seg('desc','Newest')}</div>
-        </div>
+        </div>`}
     </div>`;
 }
 /* The whole toolbar: how many rows are showing, the chips, and the Filters button. */
@@ -834,10 +842,12 @@ function daysSinceEnrol(s){
     const t = enrolTs(s);
     return t === null ? null : Math.floor((Date.now() - t) / DAY_MS);
 }
+/* Weeks this student waits before a reminder — their own setting, else the default. */
+function reminderWeeksOf(s){ return num(s.reminderWeeks) > 0 ? num(s.reminderWeeks) : REMINDER_DAYS / 7; }
 function reminderDue(s){
     if (num(s.feePending) <= 0 || s.followUp) return false;
     const d = daysSinceEnrol(s);
-    return d !== null && d >= REMINDER_DAYS;
+    return d !== null && d >= reminderWeeksOf(s) * 7;
 }
 function dueReminders(){
     const out = [];
@@ -867,7 +877,7 @@ function reminderPanel(){
         <div class="due-row">
             <div class="min-w-0">
                 <p class="due-name">${esc(s.name)}</p>
-                <p class="due-meta">${esc(b.name)} · week ${Math.floor(days / 7) + 1} · enrolled ${days} days ago · ${esc(s.contact || 'no contact')}</p>
+                <p class="due-meta">${esc(b.name)} · week ${Math.floor(days / 7) + 1} · enrolled ${days} days ago · reminder set at ${reminderWeeksOf(s)} week${reminderWeeksOf(s) === 1 ? '' : 's'} · ${esc(s.contact || 'no contact')}</p>
             </div>
             <span class="due-amt num">${money(s.feePending)}</span>
             <button onclick="setFollowUp('${b.id}','${s.id}','reminder')" class="edit-only due-btn">${ic('bell-ring','w-3.5 h-3.5')} Mark reminder sent</button>
@@ -885,13 +895,16 @@ function reminderPanel(){
 }
 
 function viewInstallments(){
-    const list = [];
+    let list = [];
     state.batches.forEach(b => b.students.forEach(s => {
         // Keep fully-paid students who have recorded payments, otherwise a payment
         // could never be undone once it cleared the balance.
         if (num(s.feePending) > 0 || (s.installments || []).length) list.push({ b, s });
     }));
     list.sort((a,z)=> num(z.s.feePending)-num(a.s.feePending));
+    const instOpts = { course:false, session:false, mode:false, status:true, sort:false };
+    const totalCount = list.length;
+    list = filterStudents(list, x => x.s, instOpts);
     const totalPending = list.reduce((a,x)=>a+studentPending(x.s),0);
     const totalPaid = list.reduce((a,x)=>a+num(x.s.feePaid),0);
     const offList = list.filter(x => isWrittenOff(x.s));
@@ -943,6 +956,7 @@ function viewInstallments(){
         </div>
         <p class="text-xs t-muted -mt-3 mb-5">Written off = students marked <b>Left / no reply</b>. Their balance is kept on their record but left out of Total Pending.</p>`
         : rpSummary(list.length, 'On installments', totalPaid, totalPending)}
+        ${listControls(instOpts, list.length, totalCount)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Date</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th>Status</th><th></th></tr></thead>
@@ -977,6 +991,13 @@ window.openPaymentModal = (bid, sid) => {
             <div><span>Pending</span><b class="${pending>0?'t-coral':'t-muted'} num">${money(pending)}</b></div>
             <div><span>Credited to</span><b>${esc(target.name)}</b></div>
         </div>
+        <div class="rw-row edit-only">
+            <label for="rw-weeks">Remind me after</label>
+            <input id="rw-weeks" type="number" min="1" max="52" value="${reminderWeeksOf(s)}"
+                   onchange="setReminderWeeks('${bid}','${sid}',this.value)">
+            <span>week(s) from enrolment</span>
+            <span class="rw-note">${daysSinceEnrol(s) === null ? 'no enrol date — never reminds' : 'enrolled ' + daysSinceEnrol(s) + ' days ago'}</span>
+        </div>
         ${elsewhere ? `<p class="pay-note">${ic('info','w-3.5 h-3.5')}<span>Counts toward <b>${esc(target.name)}</b>'s revenue and profit share — split across ${esc(s.name)}'s courses — while ${esc(b.name)} keeps the student.</span></p>` : ''}
         ${pending > 0 ? `
         <label class="text-xs font-semibold t-muted">Amount received now</label>
@@ -993,6 +1014,16 @@ window.openPaymentModal = (bid, sid) => {
             <button onclick="closeModal()" class="btn-ghost px-5 py-2.5 rounded-xl font-semibold text-ink-70">${pending>0?'Cancel':'Close'}</button>
             ${pending > 0 ? `<button onclick="savePayment('${bid}','${sid}')" class="btn-primary px-6 py-2.5 rounded-xl font-bold">Record payment</button>` : ''}
         </div>`);
+};
+window.setReminderWeeks = (bid, sid, value) => {
+    if (window.__getRole && window.__getRole() === 'viewer') return;
+    const b = state.batches.find(x => x.id === bid); if (!b) return;
+    const s = b.students.find(x => x.id === sid); if (!s) return;
+    const w = Math.max(1, Math.min(52, Math.round(num(value)) || 0));
+    s.reminderWeeks = w;
+    save(); render();
+    toast(`${esc(s.name)} reminds at ${w} week${w === 1 ? '' : 's'}`);
+    openPaymentModal(bid, sid);
 };
 window.savePayment = (bid, sid) => {
     const b = state.batches.find(x => x.id === bid); if (!b) return;

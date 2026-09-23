@@ -136,6 +136,9 @@ function normalizeStudent(s){
         feePaid: num(s.feePaid), feePending: num(s.feePending),
         // Installment follow-up label — a note for chasing payment, never changes money.
         followUp: ['reminder','paid','left'].includes(s.followUp) ? s.followUp : '',
+        // Weeks after enrolment before this student is flagged for a payment
+        // reminder. 0 = use the company default.
+        reminderWeeks: num(s.reminderWeeks) > 0 ? Math.round(num(s.reminderWeeks)) : 0,
         followUpAt: s.followUpAt || '',
         date: s.date || '',
         // Machine timestamp of when the record was created. 0 = unknown (records made
