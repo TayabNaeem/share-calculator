@@ -560,3 +560,5 @@ body:not(.role-viewer) .viewer-only { display: none !important; }
     font-size: 10px; font-weight: 800; color: #B45309;
     padding: 2px 7px; border-radius: 999px; background: #FEF3C7; border: 1px solid #FCD34D;
 }
+
+.wo-amt { text-decoration: line-through; text-decoration-color: rgba(0,22,50,.35); color: var(--muted); }

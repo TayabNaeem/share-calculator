@@ -457,7 +457,7 @@ function viewStudents(){
         </tr>`;
     }).join('');
     const rec = shownStudents.reduce((a,s)=>a+num(s.feePaid),0);
-    const pen = shownStudents.reduce((a,s)=>a+num(s.feePending),0);
+    const pen = shownStudents.reduce((a,s)=>a+studentPending(s),0);
     return `
     <div class="glass rounded-3xl p-6 md:p-8">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -892,8 +892,10 @@ function viewInstallments(){
         if (num(s.feePending) > 0 || (s.installments || []).length) list.push({ b, s });
     }));
     list.sort((a,z)=> num(z.s.feePending)-num(a.s.feePending));
-    const totalPending = list.reduce((a,x)=>a+num(x.s.feePending),0);
+    const totalPending = list.reduce((a,x)=>a+studentPending(x.s),0);
     const totalPaid = list.reduce((a,x)=>a+num(x.s.feePaid),0);
+    const offList = list.filter(x => isWrittenOff(x.s));
+    const writtenOff = offList.reduce((a,x)=>a+num(x.s.feePending),0);
     const rows = list.map(({b,s}) => {
         const total = num(s.feePaid)+num(s.feePending);
         const pct = total>0 ? Math.round(num(s.feePaid)/total*100) : 0;
@@ -908,7 +910,10 @@ function viewInstallments(){
                 const away = creditedAway(s, b.id);
                 return away > 0 ? `<div class="text-[10px] t-muted">${money(away)} to other batches</div>` : '';
             })()}</td>
-            <td class="text-right num font-bold ${num(s.feePending)>0?'t-coral':'t-muted'}">${num(s.feePending)>0 ? money(s.feePending) : '<span class="badge fill-1 t-muted">Cleared</span>'}</td>
+            <td class="text-right num font-bold ${num(s.feePending)>0 && !isWrittenOff(s) ?'t-coral':'t-muted'}">${
+                num(s.feePending) <= 0 ? '<span class="badge fill-1 t-muted">Cleared</span>'
+                : isWrittenOff(s) ? `<span class="wo-amt">${money(s.feePending)}</span><div class="text-[10px] t-muted">written off</div>`
+                : money(s.feePending)}</td>
             <td class="min-w-[140px]">
                 <div class="flex items-center gap-2">
                     <div class="flex-1 h-2 rounded-full fill-2 overflow-hidden"><div style="width:${pct}%;background:linear-gradient(90deg,${COLOR.gold},${COLOR.coral})" class="h-full"></div></div>
@@ -930,7 +935,14 @@ function viewInstallments(){
             <p class="t-muted text-sm">${list.length} students with a pending balance (all batches)</p>
         </div>
         ${reminderPanel()}
-        ${rpSummary(list.length, 'On installments', totalPaid, totalPending)}
+        ${offList.length ? `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            ${miniStat('On installments', String(list.length), COLOR.white)}
+            ${miniStat('Total Received', money(totalPaid), COLOR.gold)}
+            ${miniStat('Total Pending', money(totalPending), COLOR.coral)}
+            ${miniStat('Written off · ' + offList.length + (offList.length===1?' student':' students'), money(writtenOff), '#64748B')}
+        </div>
+        <p class="text-xs t-muted -mt-3 mb-5">Written off = students marked <b>Left / no reply</b>. Their balance is kept on their record but left out of Total Pending.</p>`
+        : rpSummary(list.length, 'On installments', totalPaid, totalPending)}
         <div class="overflow-x-auto">
             <table class="tbl w-full text-sm">
                 <thead><tr><th>Student</th><th>Contact</th><th>Batch</th><th>Date</th><th>Program</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Progress</th><th>Status</th><th></th></tr></thead>
@@ -994,8 +1006,13 @@ window.savePayment = (bid, sid) => {
     s.feePending = num(s.feePending) - amt;
     s.installments = s.installments || [];
     s.installments.push({ amount: amt, date: todayStr(), batchId: target.id });
+    // Clearing the balance marks them Paid; a part-payment from someone written off
+    // brings them back into the follow-up list rather than calling them paid.
+    const cleared = num(s.feePending) <= 0;
+    if (cleared) { s.followUp = 'paid'; s.followUpAt = todayStr(); }
+    else if (s.followUp === 'left') { s.followUp = ''; s.followUpAt = ''; }
     save(); closeModal(); render();
-    toast(`${money(amt)} recorded${target.id !== b.id ? ` · credited to ${esc(target.name)}` : ''}`);
+    toast(`${money(amt)} recorded${target.id !== b.id ? ` · credited to ${esc(target.name)}` : ''}${cleared ? ' · marked Paid' : ''}`);
 };
 window.revertInstallment = async (bid, sid, idx) => {
     if (window.__getRole && window.__getRole() === 'viewer') return;

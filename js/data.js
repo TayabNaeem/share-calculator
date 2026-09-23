@@ -235,10 +235,17 @@ function batchPendingTotal(b){ return (b.pending||[]).reduce((a,p)=>a+num(p.amou
 function batchPrevReceived(b){ return (b.previous||[]).reduce((a,e)=>a+num(e.received),0); }
 function batchPrevPending(b){ return (b.previous||[]).reduce((a,e)=>a+num(e.pending),0); }
 
+/* A student tagged "Left / no reply" is written off: the balance stays on their
+   record but is no longer money we expect, so it drops out of pending totals. */
+function isWrittenOff(s){ return !!s && s.followUp === 'left'; }
+function studentPending(s){ return isWrittenOff(s) ? 0 : num(s.feePending); }
+function batchWrittenOff(b){
+    return ((b && b.students) || []).reduce((a,s) => a + (isWrittenOff(s) ? num(s.feePending) : 0), 0);
+}
 function globalTotals(){
     let received=0, pending=0, refunded=0, students=0;
     state.batches.forEach(b => {
-        b.students.forEach(s => { received += num(s.feePaid); pending += num(s.feePending); students++; });
+        b.students.forEach(s => { received += num(s.feePaid); pending += studentPending(s); students++; });
         pending += batchPendingTotal(b);   // standalone pending-payment records (all batches)
         refunded += batchRefundTotal(b);
     });
